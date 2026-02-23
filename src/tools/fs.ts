@@ -16,12 +16,7 @@ export const readFile = tool({
       .min(0)
       .optional()
       .describe("0-based line offset to start reading from"),
-    limit: z
-      .number()
-      .int()
-      .min(1)
-      .optional()
-      .describe("Maximum number of lines to return"),
+    limit: z.number().int().min(1).optional().describe("Maximum number of lines to return"),
   }),
   execute: async ({ filePath, offset, limit }) => {
     const resolved = path.resolve(filePath);
@@ -103,11 +98,7 @@ export const listFiles = tool({
       .optional()
       .default(".")
       .describe("Directory path to list (defaults to cwd)"),
-    recursive: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe("Recursively list all entries"),
+    recursive: z.boolean().optional().default(false).describe("Recursively list all entries"),
   }),
   execute: async ({ dirPath, recursive }) => {
     const resolved = path.resolve(dirPath);
@@ -162,20 +153,14 @@ export const grep = tool({
       .string()
       .optional()
       .describe("Only search files matching this glob suffix (e.g. '.ts')"),
-    ignoreCase: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe("Case-insensitive matching"),
+    ignoreCase: z.boolean().optional().default(false).describe("Case-insensitive matching"),
   }),
   execute: async ({ pattern, dirPath, glob: fileSuffix, ignoreCase }) => {
     const resolved = path.resolve(dirPath);
     const regex = new RegExp(pattern, ignoreCase ? "i" : undefined);
     const allFiles = await walkFiles(resolved);
 
-    const files = fileSuffix
-      ? allFiles.filter((f) => f.endsWith(fileSuffix))
-      : allFiles;
+    const files = fileSuffix ? allFiles.filter((f) => f.endsWith(fileSuffix)) : allFiles;
 
     const matches: {
       file: string;
@@ -208,8 +193,7 @@ export const grep = tool({
 });
 
 export const deleteFile = tool({
-  description:
-    "Delete a file or directory. For directories, set recursive to true.",
+  description: "Delete a file or directory. For directories, set recursive to true.",
   inputSchema: z.object({
     filePath: z.string().describe("Path to the file or directory to delete"),
     recursive: z
