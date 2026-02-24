@@ -1,34 +1,57 @@
 {
-  "name": "open-harness",
-  "version": "1.0.0",
+  "name": "@openharness/core",
+  "version": "0.1.0",
   "type": "module",
-  "main": "dist/index.js",
+  "description": "Building blocks for capable, general-purpose agents",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./tools/fs": {
+      "types": "./dist/tools/fs.d.ts",
+      "import": "./dist/tools/fs.js"
+    },
+    "./tools/bash": {
+      "types": "./dist/tools/bash.d.ts",
+      "import": "./dist/tools/bash.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
-    "dev": "tsx src/index.ts",
-    "cli": "tsx --env-file=.env src/cli.ts",
-    "start": "node dist/index.js",
+    "cli": "tsx --env-file=.env example/cli.ts",
     "typecheck": "tsc --noEmit",
-    "format": "oxfmt --write src",
-    "format:check": "oxfmt --check src"
+    "format": "oxfmt --write src example",
+    "format:check": "oxfmt --check src example"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "agent",
+    "ai",
+    "llm",
+    "tools",
+    "mcp"
+  ],
   "license": "ISC",
-  "description": "",
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.46",
     "@ai-sdk/mcp": "^1.0.21",
-    "@ai-sdk/openai": "^3.0.30",
     "ai": "^6.0.97",
-    "chalk": "^5.6.2",
-    "ora": "^9.3.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@ai-sdk/anthropic": "^3.0.46",
+    "@ai-sdk/openai": "^3.0.30",
     "@types/node": "^25.3.0",
+    "chalk": "^5.6.2",
+    "ora": "^9.3.0",
     "oxfmt": "^0.35.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "zod": "^4.0.0"
   }
 }
