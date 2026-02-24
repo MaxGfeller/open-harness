@@ -253,6 +253,7 @@ async function main() {
   console.log();
   console.log(`  ${chalk.dim("Goodbye.")}`);
   console.log();
+  await agent.close();
   rl.close();
 }
 
