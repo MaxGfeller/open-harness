@@ -35,150 +35,172 @@ export type AgentEvent =
       totalUsage: TokenUsage;
     };
 
-// ── Agent config (just data, not a class) ────────────────────────────
+// ── Agent ────────────────────────────────────────────────────────────
 
-export interface AgentConfig {
-  name: string;
-  systemPrompt?: string;
-  model: LanguageModel;
-  tools?: ToolSet;
-  maxSteps?: number;
-  temperature?: number;
-  maxTokens?: number;
-}
+export class Agent {
+  readonly name: string;
+  readonly model: LanguageModel;
+  readonly systemPrompt?: string;
+  readonly tools?: ToolSet;
+  readonly maxSteps: number;
+  readonly temperature?: number;
+  readonly maxTokens?: number;
 
-// ── The core agent loop ──────────────────────────────────────────────
+  private messages: ModelMessage[] = [];
 
-export async function* run(options: {
-  agent: AgentConfig;
-  messages: ModelMessage[];
-  signal?: AbortSignal;
-}): AsyncGenerator<AgentEvent> {
-  const { agent, messages, signal } = options;
+  constructor(options: {
+    name: string;
+    model: LanguageModel;
+    systemPrompt?: string;
+    tools?: ToolSet;
+    maxSteps?: number;
+    temperature?: number;
+    maxTokens?: number;
+  }) {
+    this.name = options.name;
+    this.model = options.model;
+    this.systemPrompt = options.systemPrompt;
+    this.tools = options.tools;
+    this.maxSteps = options.maxSteps ?? 100;
+    this.temperature = options.temperature;
+    this.maxTokens = options.maxTokens;
+  }
 
-  const stream = streamText({
-    model: agent.model,
-    system: agent.systemPrompt,
-    messages,
-    tools: agent.tools,
-    stopWhen: stepCountIs(agent.maxSteps ?? 100),
-    temperature: agent.temperature,
-    maxOutputTokens: agent.maxTokens,
-    abortSignal: signal,
-  });
+  async *run(
+    input: string | ModelMessage[],
+    options?: { signal?: AbortSignal },
+  ): AsyncGenerator<AgentEvent> {
+    if (typeof input === "string") {
+      this.messages.push({ role: "user", content: input });
+    } else {
+      this.messages.push(...input);
+    }
 
-  let stepNumber = 0;
-  let stepText = "";
-  let stepReasoning = "";
+    const stream = streamText({
+      model: this.model,
+      system: this.systemPrompt,
+      messages: this.messages,
+      tools: this.tools,
+      stopWhen: stepCountIs(this.maxSteps),
+      temperature: this.temperature,
+      maxOutputTokens: this.maxTokens,
+      abortSignal: options?.signal,
+    });
 
-  try {
-    for await (const part of stream.fullStream) {
-      switch (part.type) {
-        case "start-step":
-          stepNumber++;
-          stepText = "";
-          stepReasoning = "";
-          yield { type: "step.start", stepNumber };
-          break;
+    let stepNumber = 0;
+    let stepText = "";
+    let stepReasoning = "";
 
-        case "text-delta":
-          stepText += part.text;
-          yield { type: "text.delta", text: part.text };
-          break;
+    try {
+      for await (const part of stream.fullStream) {
+        switch (part.type) {
+          case "start-step":
+            stepNumber++;
+            stepText = "";
+            stepReasoning = "";
+            yield { type: "step.start", stepNumber };
+            break;
 
-        case "text-end":
-          if (stepText) {
-            yield { type: "text.done", text: stepText };
+          case "text-delta":
+            stepText += part.text;
+            yield { type: "text.delta", text: part.text };
+            break;
+
+          case "text-end":
+            if (stepText) {
+              yield { type: "text.done", text: stepText };
+            }
+            break;
+
+          case "reasoning-delta":
+            stepReasoning += part.text;
+            yield { type: "reasoning.delta", text: part.text };
+            break;
+
+          case "reasoning-end":
+            if (stepReasoning) {
+              yield { type: "reasoning.done", text: stepReasoning };
+            }
+            break;
+
+          case "tool-call":
+            yield {
+              type: "tool.start",
+              toolCallId: part.toolCallId,
+              toolName: part.toolName,
+              input: part.input,
+            };
+            break;
+
+          case "tool-result":
+            yield {
+              type: "tool.done",
+              toolCallId: part.toolCallId,
+              toolName: part.toolName,
+              output: part.output,
+            };
+            break;
+
+          case "tool-error":
+            yield {
+              type: "tool.error",
+              toolCallId: part.toolCallId,
+              toolName: part.toolName,
+              error: String(part.error),
+            };
+            break;
+
+          case "finish-step":
+            yield {
+              type: "step.done",
+              stepNumber,
+              usage: toTokenUsage(part.usage),
+              finishReason: part.finishReason,
+            };
+            break;
+
+          case "error":
+            yield {
+              type: "error",
+              error: part.error instanceof Error ? part.error : new Error(String(part.error)),
+            };
+            break;
+
+          case "finish": {
+            const result =
+              part.finishReason === "stop"
+                ? "complete"
+                : part.finishReason === "tool-calls"
+                  ? "max_steps"
+                  : part.finishReason === "error"
+                    ? "error"
+                    : "stopped";
+
+            const response = await stream.response;
+            this.messages.push(...response.messages);
+
+            yield {
+              type: "done",
+              result,
+              messages: this.messages,
+              totalUsage: toTokenUsage(part.totalUsage),
+            };
+            break;
           }
-          break;
-
-        case "reasoning-delta":
-          stepReasoning += part.text;
-          yield { type: "reasoning.delta", text: part.text };
-          break;
-
-        case "reasoning-end":
-          if (stepReasoning) {
-            yield { type: "reasoning.done", text: stepReasoning };
-          }
-          break;
-
-        case "tool-call":
-          yield {
-            type: "tool.start",
-            toolCallId: part.toolCallId,
-            toolName: part.toolName,
-            input: part.input,
-          };
-          break;
-
-        case "tool-result":
-          yield {
-            type: "tool.done",
-            toolCallId: part.toolCallId,
-            toolName: part.toolName,
-            output: part.output,
-          };
-          break;
-
-        case "tool-error":
-          yield {
-            type: "tool.error",
-            toolCallId: part.toolCallId,
-            toolName: part.toolName,
-            error: String(part.error),
-          };
-          break;
-
-        case "finish-step":
-          yield {
-            type: "step.done",
-            stepNumber,
-            usage: toTokenUsage(part.usage),
-            finishReason: part.finishReason,
-          };
-          break;
-
-        case "error":
-          yield {
-            type: "error",
-            error: part.error instanceof Error ? part.error : new Error(String(part.error)),
-          };
-          break;
-
-        case "finish": {
-          const result =
-            part.finishReason === "stop"
-              ? "complete"
-              : part.finishReason === "tool-calls"
-                ? "max_steps"
-                : part.finishReason === "error"
-                  ? "error"
-                  : "stopped";
-
-          const response = await stream.response;
-
-          yield {
-            type: "done",
-            result,
-            messages: [...messages, ...response.messages],
-            totalUsage: toTokenUsage(part.totalUsage),
-          };
-          break;
         }
       }
+    } catch (error) {
+      yield {
+        type: "error",
+        error: error instanceof Error ? error : new Error(String(error)),
+      };
+      yield {
+        type: "done",
+        result: "error",
+        messages: this.messages,
+        totalUsage: { inputTokens: undefined, outputTokens: undefined, totalTokens: undefined },
+      };
     }
-  } catch (error) {
-    yield {
-      type: "error",
-      error: error instanceof Error ? error : new Error(String(error)),
-    };
-    yield {
-      type: "done",
-      result: "error",
-      messages,
-      totalUsage: { inputTokens: undefined, outputTokens: undefined, totalTokens: undefined },
-    };
   }
 }
 
