@@ -2,9 +2,9 @@ import * as readline from "node:readline";
 import { openai } from "@ai-sdk/openai";
 import chalk from "chalk";
 import ora from "ora";
-import { Agent, type AgentEvent, type ToolCallInfo } from "./agent.js";
-import { fsTools, readFile, listFiles, grep } from "./tools/fs.js";
-import { bash } from "./tools/bash.js";
+import { Agent, type AgentEvent, type ToolCallInfo } from "../src/agent.js";
+import { fsTools, readFile, listFiles, grep } from "../src/tools/fs.js";
+import { bash } from "../src/tools/bash.js";
 
 // ── Readline setup ───────────────────────────────────────────────────
 
