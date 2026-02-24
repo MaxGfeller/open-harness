@@ -256,3 +256,13 @@ Three transport types are supported:
 | `sse` | Remote servers via Server-Sent Events (legacy) |
 
 When multiple MCP servers are configured, tools are namespaced as `serverName_toolName` to avoid collisions. With a single server, tool names are used as-is.
+
+## Example CLI
+
+`src/cli.ts` is a fully working agent CLI that ties everything together — tool approval prompts, ora spinners, streamed output, and live subagent display. It's a good reference for how to wire up all the primitives into an interactive application.
+
+```bash
+pnpm cli
+```
+
+Requires a `.env` file with your `OPENAI_API_KEY`. The CLI sets up a main agent with filesystem and bash tools, plus an `explore` subagent for read-only codebase navigation.
