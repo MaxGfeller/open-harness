@@ -6,6 +6,7 @@ import {
   type ModelMessage,
   type LanguageModelUsage,
 } from "ai";
+import { loadInstructions } from "./instructions.js";
 
 // ── Token usage ──────────────────────────────────────────────────────
 
@@ -45,8 +46,10 @@ export class Agent {
   readonly maxSteps: number;
   readonly temperature?: number;
   readonly maxTokens?: number;
+  readonly instructions: boolean;
 
   private messages: ModelMessage[] = [];
+  private cachedInstructions: string | undefined | null = null; // null = not loaded yet
 
   constructor(options: {
     name: string;
@@ -56,6 +59,8 @@ export class Agent {
     maxSteps?: number;
     temperature?: number;
     maxTokens?: number;
+    /** Load AGENTS.md / CLAUDE.md from the project directory. Defaults to true. */
+    instructions?: boolean;
   }) {
     this.name = options.name;
     this.model = options.model;
@@ -64,6 +69,7 @@ export class Agent {
     this.maxSteps = options.maxSteps ?? 100;
     this.temperature = options.temperature;
     this.maxTokens = options.maxTokens;
+    this.instructions = options.instructions ?? true;
   }
 
   async *run(
@@ -76,9 +82,17 @@ export class Agent {
       this.messages.push(...input);
     }
 
+    // Load AGENTS.md once per agent lifetime
+    if (this.instructions && this.cachedInstructions === null) {
+      this.cachedInstructions = await loadInstructions();
+    }
+
+    const systemParts = [this.systemPrompt, this.cachedInstructions].filter(Boolean);
+    const system = systemParts.length > 0 ? systemParts.join("\n\n") : undefined;
+
     const stream = streamText({
       model: this.model,
-      system: this.systemPrompt,
+      system,
       messages: this.messages,
       tools: this.tools,
       stopWhen: stepCountIs(this.maxSteps),
