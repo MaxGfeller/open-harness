@@ -4,6 +4,7 @@ import chalk from "chalk";
 import ora from "ora";
 import { Agent, type AgentEvent, type ToolCallInfo } from "./agent.js";
 import { fsTools, readFile, listFiles, grep } from "./tools/fs.js";
+import { bash } from "./tools/bash.js";
 
 // ── Readline setup ───────────────────────────────────────────────────
 
@@ -136,7 +137,7 @@ const explore = new Agent({
     "Use your tools to thoroughly explore the codebase and answer questions. " +
     "Be concise but thorough in your findings.",
   model: openai("gpt-5.2"),
-  tools: { readFile, listFiles, grep },
+  tools: { readFile, listFiles, grep, bash },
   maxSteps: 30,
 });
 
@@ -147,7 +148,7 @@ const agent = new Agent({
     "You help the user analyze, understand, make changes to, and implement features in their project. " +
     "For read-only exploration tasks (searching, reading, understanding code), prefer using the explore subagent via the task tool.",
   model: openai("gpt-5.2"),
-  tools: fsTools,
+  tools: { ...fsTools, bash },
   maxSteps: 20,
   approve,
   subagents: [explore],
