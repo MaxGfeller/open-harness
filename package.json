@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
+    "cli": "tsx --env-file=.env src/cli.ts",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "format": "oxfmt --write src",
