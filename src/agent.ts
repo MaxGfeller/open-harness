@@ -36,6 +36,20 @@ export type AgentEvent =
       totalUsage: TokenUsage;
     };
 
+// ── Approval callback ────────────────────────────────────────────────
+
+export interface ToolCallInfo {
+  toolName: string;
+  toolCallId: string;
+  input: unknown;
+}
+
+/**
+ * Called before each tool execution. Return `true` to allow, `false` to deny.
+ * Can be async — e.g. to prompt a user in a custom UI.
+ */
+export type ApproveFn = (toolCall: ToolCallInfo) => boolean | Promise<boolean>;
+
 // ── Agent ────────────────────────────────────────────────────────────
 
 export class Agent {
@@ -47,6 +61,7 @@ export class Agent {
   readonly temperature?: number;
   readonly maxTokens?: number;
   readonly instructions: boolean;
+  readonly approve?: ApproveFn;
 
   private messages: ModelMessage[] = [];
   private cachedInstructions: string | undefined | null = null; // null = not loaded yet
@@ -61,6 +76,11 @@ export class Agent {
     maxTokens?: number;
     /** Load AGENTS.md / CLAUDE.md from the project directory. Defaults to true. */
     instructions?: boolean;
+    /**
+     * Called before each tool execution. Return `true` to allow, `false` to deny.
+     * When omitted, all tool calls are allowed.
+     */
+    approve?: ApproveFn;
   }) {
     this.name = options.name;
     this.model = options.model;
@@ -70,6 +90,7 @@ export class Agent {
     this.temperature = options.temperature;
     this.maxTokens = options.maxTokens;
     this.instructions = options.instructions ?? true;
+    this.approve = options.approve;
   }
 
   async *run(
@@ -90,11 +111,14 @@ export class Agent {
     const systemParts = [this.systemPrompt, this.cachedInstructions].filter(Boolean);
     const system = systemParts.length > 0 ? systemParts.join("\n\n") : undefined;
 
+    const tools =
+      this.approve && this.tools ? wrapToolsWithApproval(this.tools, this.approve) : this.tools;
+
     const stream = streamText({
       model: this.model,
       system,
       messages: this.messages,
-      tools: this.tools,
+      tools,
       stopWhen: stepCountIs(this.maxSteps),
       temperature: this.temperature,
       maxOutputTokens: this.maxTokens,
@@ -226,4 +250,37 @@ function toTokenUsage(usage: LanguageModelUsage): TokenUsage {
     outputTokens: usage.outputTokens,
     totalTokens: usage.totalTokens,
   };
+}
+
+function wrapToolsWithApproval(tools: ToolSet, approve: ApproveFn): ToolSet {
+  const wrapped: ToolSet = {};
+  for (const [name, t] of Object.entries(tools)) {
+    if (!t.execute) {
+      wrapped[name] = t;
+      continue;
+    }
+    const originalExecute = t.execute;
+    wrapped[name] = {
+      ...t,
+      execute: async (input: any, options: any) => {
+        const allowed = await approve({
+          toolName: name,
+          toolCallId: options.toolCallId,
+          input,
+        });
+        if (!allowed) {
+          throw new ToolDeniedError(name);
+        }
+        return originalExecute(input, options);
+      },
+    };
+  }
+  return wrapped;
+}
+
+export class ToolDeniedError extends Error {
+  constructor(toolName: string) {
+    super(`Tool call to "${toolName}" was denied.`);
+    this.name = "ToolDeniedError";
+  }
 }
