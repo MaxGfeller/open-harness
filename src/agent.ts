@@ -9,6 +9,12 @@ import {
 } from "ai";
 import { z } from "zod";
 import { loadInstructions } from "./instructions.js";
+import {
+  connectMCPServers,
+  closeMCPClients,
+  type MCPServerConfig,
+  type MCPConnection,
+} from "./mcp.js";
 
 // ── Token usage ──────────────────────────────────────────────────────
 
@@ -62,13 +68,19 @@ export class Agent {
   readonly description?: string;
   readonly model: LanguageModel;
   readonly systemPrompt?: string;
-  readonly tools?: ToolSet;
   readonly maxSteps: number;
   readonly temperature?: number;
   readonly maxTokens?: number;
   readonly instructions: boolean;
   readonly approve?: ApproveFn;
   readonly onSubagentEvent?: SubagentEventFn;
+
+  /** Static tools provided at construction time. */
+  readonly tools?: ToolSet;
+
+  /** MCP server configs — connected lazily on first run. */
+  private mcpServerConfigs?: Record<string, MCPServerConfig>;
+  private mcpConnection: MCPConnection | null = null;
 
   private messages: ModelMessage[] = [];
   private cachedInstructions: string | undefined | null = null; // null = not loaded yet
@@ -94,6 +106,13 @@ export class Agent {
     subagents?: Agent[];
     /** Called for every event emitted by a subagent during a task tool call. */
     onSubagentEvent?: SubagentEventFn;
+    /**
+     * MCP servers to connect to. Tools from these servers are merged into
+     * the agent's toolset. Connections are established lazily on first run.
+     *
+     * Keys are server names (used to namespace tools when multiple servers are configured).
+     */
+    mcpServers?: Record<string, MCPServerConfig>;
   }) {
     this.name = options.name;
     this.description = options.description;
@@ -105,6 +124,7 @@ export class Agent {
     this.instructions = options.instructions ?? true;
     this.approve = options.approve;
     this.onSubagentEvent = options.onSubagentEvent;
+    this.mcpServerConfigs = options.mcpServers;
 
     // Merge the task tool into the toolset when subagents are provided
     if (options.subagents?.length) {
@@ -114,6 +134,16 @@ export class Agent {
       };
     } else {
       this.tools = options.tools;
+    }
+  }
+
+  /**
+   * Close all MCP server connections. Call this when the agent is no longer needed.
+   */
+  async close(): Promise<void> {
+    if (this.mcpConnection) {
+      await closeMCPClients(this.mcpConnection.clients);
+      this.mcpConnection = null;
     }
   }
 
@@ -132,11 +162,26 @@ export class Agent {
       this.cachedInstructions = await loadInstructions();
     }
 
+    // Connect MCP servers once per agent lifetime
+    if (this.mcpServerConfigs && !this.mcpConnection) {
+      this.mcpConnection = await connectMCPServers(this.mcpServerConfigs);
+    }
+
     const systemParts = [this.systemPrompt, this.cachedInstructions].filter(Boolean);
     const system = systemParts.length > 0 ? systemParts.join("\n\n") : undefined;
 
+    // Merge static tools with MCP tools
+    const allTools: ToolSet = {
+      ...(this.tools ?? {}),
+      ...(this.mcpConnection?.tools ?? {}),
+    };
+
     const tools =
-      this.approve && this.tools ? wrapToolsWithApproval(this.tools, this.approve) : this.tools;
+      this.approve && Object.keys(allTools).length > 0
+        ? wrapToolsWithApproval(allTools, this.approve)
+        : Object.keys(allTools).length > 0
+          ? allTools
+          : undefined;
 
     const stream = streamText({
       model: this.model,
