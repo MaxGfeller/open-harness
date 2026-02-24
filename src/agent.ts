@@ -1,4 +1,5 @@
 import {
+  tool,
   streamText,
   stepCountIs,
   type LanguageModel,
@@ -6,6 +7,7 @@ import {
   type ModelMessage,
   type LanguageModelUsage,
 } from "ai";
+import { z } from "zod";
 import { loadInstructions } from "./instructions.js";
 
 // ── Token usage ──────────────────────────────────────────────────────
@@ -50,10 +52,14 @@ export interface ToolCallInfo {
  */
 export type ApproveFn = (toolCall: ToolCallInfo) => boolean | Promise<boolean>;
 
+/** Called for every event emitted by a subagent during a task tool call. */
+export type SubagentEventFn = (agentName: string, event: AgentEvent) => void;
+
 // ── Agent ────────────────────────────────────────────────────────────
 
 export class Agent {
   readonly name: string;
+  readonly description?: string;
   readonly model: LanguageModel;
   readonly systemPrompt?: string;
   readonly tools?: ToolSet;
@@ -62,12 +68,15 @@ export class Agent {
   readonly maxTokens?: number;
   readonly instructions: boolean;
   readonly approve?: ApproveFn;
+  readonly onSubagentEvent?: SubagentEventFn;
 
   private messages: ModelMessage[] = [];
   private cachedInstructions: string | undefined | null = null; // null = not loaded yet
 
   constructor(options: {
     name: string;
+    /** Short description of this agent's purpose. Used in the task tool for subagent selection. */
+    description?: string;
     model: LanguageModel;
     systemPrompt?: string;
     tools?: ToolSet;
@@ -81,16 +90,31 @@ export class Agent {
      * When omitted, all tool calls are allowed.
      */
     approve?: ApproveFn;
+    /** Agents available as subagents via the auto-generated `task` tool. */
+    subagents?: Agent[];
+    /** Called for every event emitted by a subagent during a task tool call. */
+    onSubagentEvent?: SubagentEventFn;
   }) {
     this.name = options.name;
+    this.description = options.description;
     this.model = options.model;
     this.systemPrompt = options.systemPrompt;
-    this.tools = options.tools;
     this.maxSteps = options.maxSteps ?? 100;
     this.temperature = options.temperature;
     this.maxTokens = options.maxTokens;
     this.instructions = options.instructions ?? true;
     this.approve = options.approve;
+    this.onSubagentEvent = options.onSubagentEvent;
+
+    // Merge the task tool into the toolset when subagents are provided
+    if (options.subagents?.length) {
+      this.tools = {
+        ...(options.tools ?? {}),
+        task: createTaskTool(options.subagents, this.onSubagentEvent),
+      };
+    } else {
+      this.tools = options.tools;
+    }
   }
 
   async *run(
@@ -240,6 +264,60 @@ export class Agent {
       };
     }
   }
+}
+
+// ── Subagent task tool ───────────────────────────────────────────────
+
+function createTaskTool(subagents: Agent[], onSubagentEvent?: SubagentEventFn) {
+  const names = subagents.map((a) => a.name);
+  const byName = new Map(subagents.map((a) => [a.name, a]));
+
+  const listing = subagents.map((a) => `- ${a.name}: ${a.description ?? a.name}`).join("\n");
+
+  return tool({
+    description: [
+      "Spawn a subagent to handle a task autonomously.",
+      "The subagent runs with its own tools, completes the work, and returns the result.",
+      "Launch multiple agents concurrently when possible by calling this tool multiple times in one response.",
+      "",
+      "Available agents:",
+      listing,
+    ].join("\n"),
+    inputSchema: z.object({
+      agent: z.enum(names as [string, ...string[]]).describe("Which agent to use"),
+      prompt: z.string().describe("Detailed task description for the subagent"),
+    }),
+    execute: async (
+      { agent: agentName, prompt }: { agent: string; prompt: string },
+      { abortSignal }: { abortSignal?: AbortSignal },
+    ) => {
+      const template = byName.get(agentName)!;
+
+      // Fresh agent instance for each task — no shared state
+      const child = new Agent({
+        name: template.name,
+        model: template.model,
+        systemPrompt: template.systemPrompt,
+        tools: template.tools,
+        maxSteps: template.maxSteps,
+        temperature: template.temperature,
+        maxTokens: template.maxTokens,
+        instructions: template.instructions,
+        // No approve — subagents run autonomously
+        // No subagents — prevent recursive nesting
+      });
+
+      let lastText = "";
+      for await (const event of child.run(prompt, { signal: abortSignal })) {
+        onSubagentEvent?.(agentName, event);
+        if (event.type === "text.done") {
+          lastText = event.text;
+        }
+      }
+
+      return `<task_result>\n${lastText || "(no output)"}\n</task_result>`;
+    },
+  });
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
