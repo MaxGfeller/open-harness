@@ -1,18 +1,16 @@
 import * as readline from "node:readline";
 import { openai } from "@ai-sdk/openai";
-import { type ModelMessage } from "ai";
-import { run, type AgentConfig, type AgentEvent } from "./agent.js";
+import { Agent, type AgentEvent } from "./agent.js";
 import { fsTools } from "./tools/fs.js";
 
-const agent: AgentConfig = {
+const agent = new Agent({
   name: "cli-agent",
-  systemPrompt: "You are an expert agent built with open-harness. You are invoked through a CLI tool and have access to a set of tools to help you complete tasks. You help the user analyze, understand, make changes to, and implement features in their project.",
+  systemPrompt:
+    "You are an expert agent built with open-harness. You are invoked through a CLI tool and have access to a set of tools to help you complete tasks. You help the user analyze, understand, make changes to, and implement features in their project.",
   model: openai("gpt-5.2"),
   tools: fsTools,
   maxSteps: 20,
-};
-
-const messages: ModelMessage[] = [];
+});
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -34,13 +32,11 @@ async function main() {
     if (input.trim().toLowerCase() === "exit") break;
     if (!input.trim()) continue;
 
-    messages.push({ role: "user", content: input });
-
     process.stdout.write("\n");
 
     let doneEvent: Extract<AgentEvent, { type: "done" }> | undefined;
 
-    for await (const event of run({ agent, messages })) {
+    for await (const event of agent.run(input)) {
       switch (event.type) {
         case "text.delta":
           process.stdout.write(event.text);
@@ -77,10 +73,6 @@ async function main() {
     process.stdout.write("\n");
 
     if (doneEvent) {
-      // Update conversation history with full message trail
-      messages.length = 0;
-      messages.push(...doneEvent.messages);
-
       const { totalUsage } = doneEvent;
       if (totalUsage.totalTokens) {
         console.log(`[${doneEvent.result} | ${totalUsage.totalTokens} tokens]`);
