@@ -11,10 +11,10 @@ OpenHarness is an open source project based on Vercel's AI SDK that aims to prov
 The `Agent` class is the core primitive. An agent wraps a language model, a set of tools, and a multi-step execution loop into a single object that you can `run()` with a prompt.
 
 ```typescript
-import { Agent } from "open-harness";
+import { Agent } from "@openharness/core";
 import { openai } from "@ai-sdk/openai";
-import { fsTools } from "open-harness/tools/fs";
-import { bash } from "open-harness/tools/bash";
+import { fsTools } from "@openharness/core/tools/fs";
+import { bash } from "@openharness/core/tools/bash";
 
 const agent = new Agent({
   name: "dev",
@@ -88,7 +88,7 @@ The full set of events emitted by `run()`:
 
 Tools use the Vercel AI SDK `tool()` helper with Zod schemas. OpenHarness ships a set of built-in tools that you can use as-is, compose, or replace entirely.
 
-### Filesystem tools (`open-harness/tools/fs`)
+### Filesystem tools (`@openharness/core/tools/fs`)
 
 | Tool | Description |
 | --- | --- |
@@ -101,7 +101,7 @@ Tools use the Vercel AI SDK `tool()` helper with Zod schemas. OpenHarness ships 
 
 All are exported individually and also grouped as `fsTools`.
 
-### Bash tool (`open-harness/tools/bash`)
+### Bash tool (`@openharness/core/tools/bash`)
 
 Runs arbitrary shell commands via `bash -c`. Configurable timeout (default 30s, max 5min) and automatic output truncation.
 
@@ -259,10 +259,9 @@ When multiple MCP servers are configured, tools are namespaced as `serverName_to
 
 ## Example CLI
 
-`src/cli.ts` is a fully working agent CLI that ties everything together — tool approval prompts, ora spinners, streamed output, and live subagent display. It's a good reference for how to wire up all the primitives into an interactive application.
+[`example/cli.ts`](example/cli.ts) is a fully working agent CLI that ties everything together — tool approval prompts, ora spinners, streamed output, and live subagent display. It's a good reference for how to wire up all the primitives into an interactive application.
 
 ```bash
+# requires a .env file with OPENAI_API_KEY
 pnpm cli
 ```
-
-Requires a `.env` file with your `OPENAI_API_KEY`. The CLI sets up a main agent with filesystem and bash tools, plus an `explore` subagent for read-only codebase navigation.
