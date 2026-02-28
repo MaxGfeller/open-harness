@@ -8,7 +8,7 @@ OpenHarness is an open source project based on Vercel's AI SDK that aims to prov
 
 ## Agents
 
-The `Agent` class is the core primitive. An agent wraps a language model, a set of tools, and a multi-step execution loop into a single object that you can `run()` with a prompt.
+The `Agent` class is the core primitive. An agent wraps a language model, a set of tools, and a multi-step execution loop into a stateless executor that you can `run()` with a message history and new input.
 
 ```typescript
 import { Agent } from "@openharness/core";
@@ -27,10 +27,14 @@ const agent = new Agent({
 
 ### Running an agent
 
-`agent.run()` is an async generator that yields a stream of typed events as the agent works. You iterate over these events to build any UI you want — a CLI, a web app, a log file, or nothing at all.
+`agent.run()` is an async generator that takes a message history and new input, and yields a stream of typed events as the agent works. The agent is **stateless** — it doesn't accumulate messages internally. You pass the conversation history in and get the updated history back in the `done` event.
 
 ```typescript
-for await (const event of agent.run("Refactor the auth module to use JWTs")) {
+import type { ModelMessage } from "ai";
+
+let messages: ModelMessage[] = [];
+
+for await (const event of agent.run(messages, "Refactor the auth module to use JWTs")) {
   switch (event.type) {
     case "text.delta":
       process.stdout.write(event.text);
@@ -42,13 +46,14 @@ for await (const event of agent.run("Refactor the auth module to use JWTs")) {
       console.log(`${event.toolName} finished`);
       break;
     case "done":
+      messages = event.messages; // capture updated history for next turn
       console.log(`Result: ${event.result}, tokens: ${event.totalUsage.totalTokens}`);
       break;
   }
 }
 ```
 
-The agent maintains conversation history across `run()` calls, so you can use it in a loop for multi-turn interactions.
+This makes it easy to build multi-turn interactions — just pass the messages from the previous `done` event into the next `run()` call. It also means you have full control over the conversation history: you can inspect it, modify it, or share it between agents.
 
 ### Events
 
@@ -83,6 +88,185 @@ The full set of events emitted by `run()`:
 | `approve` | — | Callback for tool call approval (see [Permissions](#permissions)) |
 | `subagents` | — | Child agents available via the `task` tool (see [Subagents](#subagents)) |
 | `mcpServers` | — | MCP servers to connect to (see [MCP Servers](#mcp-servers)) |
+
+## Sessions
+
+While Agent is a stateless executor, `Session` adds the statefulness and resilience you need for interactive, multi-turn conversations. It owns the message history and handles compaction, retry, persistence, and lifecycle hooks automatically.
+
+```typescript
+import { Session } from "@openharness/core";
+
+const session = new Session({
+  agent,
+  contextWindow: 200_000,
+});
+
+for await (const event of session.send("Refactor the auth module")) {
+  switch (event.type) {
+    case "text.delta":
+      process.stdout.write(event.text);
+      break;
+    case "compaction.done":
+      console.log(`Compacted: ${event.tokensBefore} → ${event.tokensAfter} tokens`);
+      break;
+    case "retry":
+      console.log(`Retrying in ${event.delayMs}ms...`);
+      break;
+    case "turn.done":
+      console.log(`Turn ${event.turnNumber} complete`);
+      break;
+  }
+}
+```
+
+`session.send()` yields all the same `AgentEvent` types as `agent.run()`, plus additional session lifecycle events.
+
+### Session configuration
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `agent` | (required) | The `Agent` to use for execution |
+| `contextWindow` | — | Model context window size in tokens. Required for auto-compaction |
+| `reservedTokens` | `min(20_000, agent.maxTokens ?? 20_000)` | Tokens reserved for output |
+| `autoCompact` | `true` when `contextWindow` is set | Enable auto-compaction |
+| `shouldCompact` | — | Custom overflow detection function |
+| `compactionStrategy` | `DefaultCompactionStrategy()` | Custom compaction strategy |
+| `retry` | — | Retry config for transient API errors |
+| `hooks` | — | Lifecycle hooks (see [Hooks](#hooks)) |
+| `sessionStore` | — | Pluggable persistence backend |
+| `sessionId` | auto-generated UUID | Session identifier |
+
+### Session events
+
+In addition to all `AgentEvent` types, `session.send()` yields:
+
+| Event | Description |
+| --- | --- |
+| `turn.start` | A new turn is starting |
+| `turn.done` | Turn completed (includes token usage) |
+| `compaction.start` | Compaction triggered (includes reason and token count) |
+| `compaction.pruned` | Tool results pruned (phase 1) |
+| `compaction.summary` | Conversation summarized (phase 2) |
+| `compaction.done` | Compaction finished (includes before/after token counts) |
+| `retry` | Retrying after a transient error (includes attempt count and delay) |
+
+### Compaction
+
+When a conversation approaches the context window limit, the session automatically compacts the message history. The default strategy works in two phases:
+
+1. **Pruning** — replaces tool result content in older messages with `"[pruned]"`, preserving the most recent ~40K tokens of context. No LLM call needed.
+2. **Summarization** — when pruning isn't enough, calls the model to generate a structured summary and replaces the entire history with it.
+
+You can customize compaction at multiple levels:
+
+```typescript
+import { DefaultCompactionStrategy } from "@openharness/core";
+
+// Tune the default strategy
+const session = new Session({
+  agent,
+  contextWindow: 128_000,
+  compactionStrategy: new DefaultCompactionStrategy({
+    protectedTokens: 60_000,    // protect more recent context
+    summaryModel: cheapModel,   // use a cheaper model for summarization
+  }),
+});
+
+// Or replace the strategy entirely
+const session = new Session({
+  agent,
+  contextWindow: 128_000,
+  compactionStrategy: {
+    async compact(context) {
+      // your own compaction logic
+      return { messages: [...], messagesRemoved: 0, tokensPruned: 0 };
+    },
+  },
+});
+
+// Or go fully manual
+const session = new Session({ agent, autoCompact: false });
+// ...later:
+for await (const event of session.compact()) { ... }
+```
+
+### Retry
+
+Transient API errors (429, 500, 502, 503, 504, 529, rate limits, timeouts) are retried automatically with exponential backoff and jitter. Retries only happen **before** any content has been streamed to the consumer — once the model starts producing output, the session commits to that attempt.
+
+```typescript
+const session = new Session({
+  agent,
+  retry: {
+    maxRetries: 5,
+    initialDelayMs: 2000,
+    maxDelayMs: 60_000,
+    isRetryable: (error) => error.message.includes("overloaded"),
+  },
+});
+```
+
+### Hooks
+
+Hooks let you intercept and customize the session lifecycle:
+
+```typescript
+const session = new Session({
+  agent,
+  hooks: {
+    // Modify messages before each LLM call
+    onBeforeSend: (messages) => {
+      return messages.filter(m => !isStale(m));
+    },
+    // Post-processing after each turn
+    onAfterResponse: ({ turnNumber, messages, usage }) => {
+      console.log(`Turn ${turnNumber}: ${usage.totalTokens} tokens`);
+    },
+    // Custom compaction prompt
+    onCompaction: (context) => {
+      return "Summarize with emphasis on code changes and file paths.";
+    },
+    // Custom error handling (return true to suppress)
+    onError: (error, attempt) => {
+      logger.warn(`Attempt ${attempt} failed: ${error.message}`);
+    },
+  },
+});
+```
+
+### Persistence
+
+Plug in any storage backend by implementing the `SessionStore` interface:
+
+```typescript
+const session = new Session({
+  agent,
+  sessionId: "user-123-conversation-1",
+  sessionStore: {
+    async load(id) { return db.get(id); },
+    async save(id, messages) { await db.set(id, messages); },
+    async delete(id) { await db.del(id); },
+  },
+});
+
+// Restore a previous session
+await session.load();
+
+// Messages are auto-saved after each turn, or save manually:
+await session.save();
+```
+
+### Direct state access
+
+The session's message history is directly readable and writable:
+
+```typescript
+// Read current state
+console.log(session.messages.length, session.turns, session.totalUsage);
+
+// Inject or modify messages
+session.messages.push({ role: "user", content: "Remember: always use TypeScript." });
+```
 
 ## Tools
 
@@ -241,7 +425,7 @@ const agent = new Agent({
 });
 
 // MCP connections are established lazily on first run()
-for await (const event of agent.run("What PRs are open?")) { ... }
+for await (const event of agent.run([], "What PRs are open?")) { ... }
 
 // Clean up MCP connections when done
 await agent.close();
@@ -259,7 +443,7 @@ When multiple MCP servers are configured, tools are namespaced as `serverName_to
 
 ## Example CLI
 
-[`example/cli.ts`](example/cli.ts) is a fully working agent CLI that ties everything together — tool approval prompts, ora spinners, streamed output, and live subagent display. It's a good reference for how to wire up all the primitives into an interactive application.
+[`example/cli.ts`](example/cli.ts) is a fully working agent CLI that ties everything together — a `Session` wrapping an `Agent` with tool approval prompts, ora spinners, streamed output, live subagent display, and a `/compact` command for manual compaction. It's a good reference for how to wire up all the primitives into an interactive application.
 
 ```bash
 # requires a .env file with OPENAI_API_KEY
