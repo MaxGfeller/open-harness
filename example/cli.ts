@@ -3,6 +3,7 @@ import { openai } from "@ai-sdk/openai";
 import chalk from "chalk";
 import ora from "ora";
 import { Agent, type AgentEvent, type ToolCallInfo } from "../src/agent.js";
+import { Session, type SessionEvent } from "../src/session.js";
 import { fsTools, readFile, listFiles, grep } from "../src/tools/fs.js";
 import { bash } from "../src/tools/bash.js";
 
@@ -155,6 +156,11 @@ const agent = new Agent({
   onSubagentEvent,
 });
 
+const session = new Session({
+  agent,
+  contextWindow: 200_000,
+});
+
 // ── Main loop ────────────────────────────────────────────────────────
 
 async function main() {
@@ -162,7 +168,7 @@ async function main() {
   console.log(
     `  ${chalk.bold.cyan("open-harness")} ${chalk.dim("gpt-5.2 · fs tools · explore subagent")}`,
   );
-  console.log(`  ${chalk.dim('Type "exit" to quit.')}`);
+  console.log(`  ${chalk.dim('Type "exit" to quit. "/compact" to trigger compaction.')}`);
 
   while (true) {
     console.log();
@@ -170,13 +176,44 @@ async function main() {
     if (input.trim().toLowerCase() === "exit") break;
     if (!input.trim()) continue;
 
+    // Slash command: /compact
+    if (input.trim() === "/compact") {
+      console.log();
+      for await (const event of session.compact()) {
+        switch (event.type) {
+          case "compaction.start":
+            console.log(
+              `  ${chalk.dim("⟳")} Compacting... (${event.tokensBefore} estimated tokens)`,
+            );
+            break;
+          case "compaction.pruned":
+            console.log(
+              `  ${chalk.dim("⟳")} Pruned ${event.messagesRemoved} messages (${event.tokensRemoved} tokens)`,
+            );
+            break;
+          case "compaction.summary":
+            console.log(`  ${chalk.dim("⟳")} Generated summary`);
+            break;
+          case "compaction.done":
+            console.log(
+              `  ${chalk.green("✔")} Compacted: ${event.tokensBefore} → ${event.tokensAfter} estimated tokens`,
+            );
+            break;
+        }
+      }
+      continue;
+    }
+
     console.log();
 
-    let doneEvent: Extract<AgentEvent, { type: "done" }> | undefined;
+    let doneEvent: Extract<SessionEvent, { type: "done" }> | undefined;
     let streaming = false;
 
-    for await (const event of agent.run(input)) {
+    for await (const event of session.send(input)) {
       switch (event.type) {
+        case "turn.start":
+          break;
+
         case "text.delta":
           if (!streaming) {
             process.stdout.write(`  ${BAR} `);
@@ -233,6 +270,33 @@ async function main() {
         case "done":
           doneEvent = event;
           break;
+
+        case "compaction.start":
+          console.log(
+            `  ${chalk.dim("⟳")} Compacting... (${event.tokensBefore} estimated tokens)`,
+          );
+          break;
+
+        case "compaction.done":
+          console.log(
+            `  ${chalk.green("✔")} Compacted: ${event.tokensBefore} → ${event.tokensAfter} estimated tokens`,
+          );
+          break;
+
+        case "retry":
+          console.log(
+            `  ${chalk.yellow("⟳")} Retrying in ${event.delayMs}ms... (attempt ${event.attempt + 1}/${event.maxRetries})`,
+          );
+          break;
+
+        case "turn.done": {
+          const parts: string[] = [`Turn ${event.turnNumber}`];
+          if (event.usage.totalTokens) {
+            parts.push(`${event.usage.totalTokens} tokens`);
+          }
+          console.log(`  ${chalk.dim(parts.join(" · "))}`);
+          break;
+        }
       }
     }
 
