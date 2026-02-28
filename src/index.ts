@@ -22,6 +22,24 @@ export {
   type SseMCPServer,
 } from "./mcp.js";
 
+// ── Session ─────────────────────────────────────────────────────────
+
+export {
+  Session,
+  DefaultCompactionStrategy,
+  type SessionEvent,
+  type SessionLifecycleEvent,
+  type SessionOptions,
+  type CompactionStrategy,
+  type CompactionContext,
+  type CompactionResult,
+  type RetryConfig,
+  type SessionHooks,
+  type TurnInfo,
+  type SessionStore,
+  type CompactionCheckInfo,
+} from "./session.js";
+
 // ── Instructions ────────────────────────────────────────────────────
 
 export { findInstructions, loadInstructions } from "./instructions.js";
