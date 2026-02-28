@@ -82,7 +82,6 @@ export class Agent {
   private mcpServerConfigs?: Record<string, MCPServerConfig>;
   private mcpConnection: MCPConnection | null = null;
 
-  private messages: ModelMessage[] = [];
   private cachedInstructions: string | undefined | null = null; // null = not loaded yet
 
   constructor(options: {
@@ -148,13 +147,16 @@ export class Agent {
   }
 
   async *run(
+    history: ModelMessage[],
     input: string | ModelMessage[],
     options?: { signal?: AbortSignal },
   ): AsyncGenerator<AgentEvent> {
+    // Build messages: history + new input (Agent does NOT mutate history)
+    const messages: ModelMessage[] = [...history];
     if (typeof input === "string") {
-      this.messages.push({ role: "user", content: input });
+      messages.push({ role: "user", content: input });
     } else {
-      this.messages.push(...input);
+      messages.push(...input);
     }
 
     // Load AGENTS.md once per agent lifetime
@@ -186,7 +188,7 @@ export class Agent {
     const stream = streamText({
       model: this.model,
       system,
-      messages: this.messages,
+      messages,
       tools,
       stopWhen: stepCountIs(this.maxSteps),
       temperature: this.temperature,
@@ -284,12 +286,12 @@ export class Agent {
                     : "stopped";
 
             const response = await stream.response;
-            this.messages.push(...response.messages);
+            messages.push(...response.messages);
 
             yield {
               type: "done",
               result,
-              messages: this.messages,
+              messages,
               totalUsage: toTokenUsage(part.totalUsage),
             };
             break;
@@ -304,7 +306,7 @@ export class Agent {
       yield {
         type: "done",
         result: "error",
-        messages: this.messages,
+        messages,
         totalUsage: { inputTokens: undefined, outputTokens: undefined, totalTokens: undefined },
       };
     }
@@ -353,7 +355,7 @@ function createTaskTool(subagents: Agent[], onSubagentEvent?: SubagentEventFn) {
       });
 
       let lastText = "";
-      for await (const event of child.run(prompt, { signal: abortSignal })) {
+      for await (const event of child.run([], prompt, { signal: abortSignal })) {
         onSubagentEvent?.(agentName, event);
         if (event.type === "text.done") {
           lastText = event.text;
