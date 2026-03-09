@@ -84,7 +84,6 @@ export function ChatView() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Type a message..."
-          disabled={isStreaming}
           style={{
             flex: 1,
             padding: "0.5rem 0.75rem",
