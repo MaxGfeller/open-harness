@@ -11,7 +11,7 @@ const explore = new Agent({
   systemPrompt:
     "You are a codebase exploration agent with read-only filesystem access. " +
     "Be concise but thorough in your findings.",
-  model: openai("gpt-4o-mini"),
+  model: openai("gpt-5.2"),
   tools: { readFile, listFiles, grep },
   maxSteps: 15,
   instructions: false,
@@ -23,7 +23,7 @@ const agent = new Agent({
     "You are a helpful coding assistant. You can read, write, and modify files, " +
     "run shell commands, and explore the codebase using the explore subagent. " +
     "Be concise and direct in your responses.",
-  model: openai("gpt-4o-mini"),
+  model: openai("gpt-5.2"),
   tools: { readFile, listFiles, grep, bash },
   maxSteps: 20,
   subagents: [explore],
@@ -51,7 +51,16 @@ function getOrCreateSession(conversationId?: string): Session {
 // ── Route handler ───────────────────────────────────────────────────
 
 export async function POST(req: Request) {
-  const { message, conversationId } = await req.json();
-  const session = getOrCreateSession(conversationId);
-  return session.toResponse(message);
+  const { id, messages } = await req.json();
+  const session = getOrCreateSession(id);
+
+  // Extract the last user message text from the AI SDK 5 messages array
+  // UIMessage uses `parts` (not `content`)
+  const lastMessage = messages[messages.length - 1];
+  const text = lastMessage.parts
+    .filter((p: any) => p.type === "text")
+    .map((p: any) => p.text)
+    .join("");
+
+  return session.toResponse(text);
 }

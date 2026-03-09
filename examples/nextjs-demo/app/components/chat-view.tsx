@@ -38,7 +38,7 @@ export function ChatView() {
   }
 
   return (
-    <>
+    <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
       <StatusBar
         subagent={subagent}
         session={session}
@@ -50,6 +50,7 @@ export function ChatView() {
         ref={scrollRef}
         style={{
           flex: 1,
+          minHeight: 0,
           overflowY: "auto",
           display: "flex",
           flexDirection: "column",
@@ -71,6 +72,7 @@ export function ChatView() {
       <form
         onSubmit={handleSubmit}
         style={{
+          flex: "0 0 auto",
           display: "flex",
           gap: "0.5rem",
           borderTop: "1px solid #eee",
@@ -126,6 +128,6 @@ export function ChatView() {
           </button>
         )}
       </form>
-    </>
+    </div>
   );
 }
