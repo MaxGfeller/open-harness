@@ -6,6 +6,22 @@ And while Anthropic offers the Claude Agent SDK, OpenAI now offers the Codex App
 
 OpenHarness is an open source project based on Vercel's AI SDK that aims to provide the building blocks to build very capable, general-purpose agents in code. It is inspired by all of the aforementioned coding agents.
 
+## Packages
+
+OpenHarness is a pnpm monorepo with two packages and an example app:
+
+| Package | Description |
+| --- | --- |
+| [`@openharness/core`](packages/core) | Agent, Session, tools, UI stream integration |
+| [`@openharness/react`](packages/react) | React hooks and provider for AI SDK 5 chat UIs |
+| [`examples/nextjs-demo`](examples/nextjs-demo) | Next.js demo app using both packages |
+
+```bash
+pnpm install
+pnpm build
+pnpm test
+```
+
 ## Agents
 
 The `Agent` class is the core primitive. An agent wraps a language model, a set of tools, and a multi-step execution loop into a stateless executor that you can `run()` with a message history and new input.
@@ -441,11 +457,129 @@ Three transport types are supported:
 
 When multiple MCP servers are configured, tools are namespaced as `serverName_toolName` to avoid collisions. With a single server, tool names are used as-is.
 
+## AI SDK 5 UI Integration
+
+OpenHarness integrates with AI SDK 5's data stream protocol, so you can stream agent sessions directly to `useChat`-based React UIs.
+
+### Server: `session.toResponse()`
+
+`Session` has two methods for streaming to the client:
+
+- `toUIMessageStream(input)` — returns a `ReadableStream<UIMessageChunk>` that maps session events to AI SDK 5 typed chunks
+- `toResponse(input)` — wraps the stream in an HTTP `Response` with SSE headers, ready to return from any route handler
+
+```typescript
+// app/api/chat/route.ts (Next.js)
+import { Agent, Session } from "@openharness/core";
+
+const session = new Session({ agent, contextWindow: 128_000 });
+
+export async function POST(req: Request) {
+  const { id, messages } = await req.json();
+  const lastMessage = messages[messages.length - 1];
+  const text = lastMessage.parts
+    .filter((p: any) => p.type === "text")
+    .map((p: any) => p.text)
+    .join("");
+
+  return session.toResponse(text);
+}
+```
+
+The stream emits all standard AI SDK 5 chunk types (`text-delta`, `reasoning-delta`, `tool-input-available`, `tool-output-available`, `start`, `finish`, etc.) plus custom OpenHarness data parts for subagent activity, compaction, retry, and turn lifecycle:
+
+| Data part | Description |
+| --- | --- |
+| `data-oh:subagent.start` | A subagent task was spawned |
+| `data-oh:subagent.done` | A subagent task completed |
+| `data-oh:subagent.error` | A subagent task failed |
+| `data-oh:compaction.start` | Compaction started |
+| `data-oh:compaction.done` | Compaction finished |
+| `data-oh:retry` | Retrying after transient error |
+| `data-oh:turn.start` | Turn started |
+| `data-oh:turn.done` | Turn finished |
+| `data-oh:session.compacting` | Session is compacting |
+
+### Client: `@openharness/react`
+
+The React package provides hooks that wire into AI SDK 5's `useChat` and track OpenHarness-specific state:
+
+```tsx
+import {
+  OpenHarnessProvider,
+  useOpenHarness,
+  useSubagentStatus,
+  useSessionStatus,
+} from "@openharness/react";
+
+function App() {
+  return (
+    <OpenHarnessProvider>
+      <Chat />
+    </OpenHarnessProvider>
+  );
+}
+
+function Chat() {
+  const { messages, sendMessage, status, stop } = useOpenHarness({
+    endpoint: "/api/chat",
+  });
+  const { activeSubagents, hasActiveSubagents } = useSubagentStatus();
+  const session = useSessionStatus();
+
+  return (
+    <div>
+      {messages.map((msg) => (
+        <div key={msg.id}>
+          {msg.parts.map((part, i) =>
+            part.type === "text" ? <span key={i}>{part.text}</span> : null
+          )}
+        </div>
+      ))}
+      <button onClick={() => sendMessage({ text: "Hello" })}>Send</button>
+    </div>
+  );
+}
+```
+
+**`useOpenHarness(config)`** — creates a chat session connected to your API endpoint. Returns the same interface as AI SDK 5's `useChat` (`messages`, `sendMessage`, `status`, `stop`, etc.), typed with `OHUIMessage`.
+
+**`useSubagentStatus()`** — derives reactive state from `data-oh:subagent.*` events:
+- `activeSubagents` — currently running subagents
+- `recentSubagents` — all subagents seen in this session
+- `hasActiveSubagents` — boolean shorthand
+
+**`useSessionStatus()`** — tracks turn index, compaction state, and retry info from `data-oh:*` events.
+
+**`OpenHarnessProvider`** — context provider that holds subagent, session, and sandbox state. Wrap your app (or chat component) with this.
+
+### Custom data part types
+
+If you're building custom UI components that consume the stream directly, the core package exports typed data part types and guards:
+
+```typescript
+import {
+  type OHDataPart,
+  isSubagentEvent,
+  isCompactionEvent,
+} from "@openharness/core";
+```
+
 ## Example CLI
 
-[`example/cli.ts`](example/cli.ts) is a fully working agent CLI that ties everything together — a `Session` wrapping an `Agent` with tool approval prompts, ora spinners, streamed output, live subagent display, and a `/compact` command for manual compaction. It's a good reference for how to wire up all the primitives into an interactive application.
+[`packages/core/example/cli.ts`](packages/core/example/cli.ts) is a fully working agent CLI that ties everything together — a `Session` wrapping an `Agent` with tool approval prompts, ora spinners, streamed output, live subagent display, and a `/compact` command for manual compaction. It's a good reference for how to wire up all the primitives into an interactive application.
 
 ```bash
 # requires a .env file with OPENAI_API_KEY
-pnpm cli
+pnpm --filter @openharness/core cli
+```
+
+## Example Next.js App
+
+[`examples/nextjs-demo`](examples/nextjs-demo) is a Next.js chat app that demonstrates the full stack: server-side route handler with `session.toResponse()`, client-side hooks with `useOpenHarness`, live subagent and session status, and an `announce` tool that lets the agent narrate its progress as styled messages in the chat.
+
+```bash
+cp examples/nextjs-demo/.env.example examples/nextjs-demo/.env
+# Edit .env and add your OPENAI_API_KEY
+pnpm --filter nextjs-demo dev
 ```
