@@ -9,6 +9,7 @@
     "format:check": "pnpm -r format:check"
   },
   "devDependencies": {
+    "jsdom": "^26.1.0",
     "vitest": "^3.2.1"
   }
 }
