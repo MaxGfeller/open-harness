@@ -43,3 +43,42 @@ export {
 // ── Instructions ────────────────────────────────────────────────────
 
 export { findInstructions, loadInstructions } from "./instructions.js";
+
+// ── UI Message Types ────────────────────────────────────────────────
+
+export {
+  type OHDataTypes,
+  type OHMetadata,
+  type OHUIMessage,
+} from "./types/ui-message.js";
+
+// ── Stream Parts ────────────────────────────────────────────────────
+
+export {
+  // Data part types
+  type OHDataPart,
+  type OHSubagentPart,
+  type OHCompactionPart,
+  type OHRetryPart,
+  type OHSessionLifecyclePart,
+
+  // Type guards
+  isOHDataPart,
+  isSubagentEvent,
+  isCompactionEvent,
+  isRetryEvent,
+  isSessionLifecycleEvent,
+
+  // SSE formatters
+  formatSSE,
+  formatTextDelta,
+  formatReasoningDelta,
+  formatDataPart,
+  formatToolStart,
+  formatToolResult,
+  formatToolError,
+  formatStepStart,
+  formatStepFinish,
+  formatFinishMessage,
+  formatDone,
+} from "./types/stream-parts.js";
