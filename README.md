@@ -8,13 +8,14 @@ OpenHarness is an open source project based on Vercel's AI SDK that aims to prov
 
 ## Packages
 
-OpenHarness is a pnpm monorepo with two packages and an example app:
+OpenHarness is a pnpm monorepo with two packages and two example apps:
 
 | Package | Description |
 | --- | --- |
 | [`@openharness/core`](packages/core) | Agent, Session, tools, UI stream integration |
 | [`@openharness/react`](packages/react) | React hooks and provider for AI SDK 5 chat UIs |
-| [`examples/nextjs-demo`](examples/nextjs-demo) | Next.js demo app using both packages |
+| [`examples/cli`](examples/cli) | Interactive terminal agent with tool approval and subagent display |
+| [`examples/nextjs-demo`](examples/nextjs-demo) | Next.js chat app using both packages |
 
 ## Getting Started
 
