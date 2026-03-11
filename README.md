@@ -131,6 +131,7 @@ The full set of events emitted by `run()`:
 | `instructions` | `true` | Whether to load `AGENTS.md` / `CLAUDE.md` from the project directory |
 | `approve` | — | Callback for tool call approval (see [Permissions](#permissions)) |
 | `subagents` | — | Child agents available via the `task` tool (see [Subagents](#subagents)) |
+| `maxSubagentDepth` | `1` | Maximum nesting depth for subagents. `1` = direct subagents only, `2` = sub-subagents, etc. |
 | `mcpServers` | — | MCP servers to connect to (see [MCP Servers](#mcp-servers)) |
 
 ## Sessions
@@ -414,9 +415,40 @@ Key behaviors:
 
 - **Fresh instance per task** — each `task` call creates a new agent with no shared conversation state
 - **No approval** — subagents run autonomously without prompting for permission
-- **No nesting** — subagents cannot themselves have subagents
+- **Configurable nesting** — by default subagents cannot themselves have subagents (`maxSubagentDepth: 1`). Set a higher depth to enable nested delegation (see [Nested subagents](#nested-subagents))
 - **Abort propagation** — the parent's abort signal is forwarded to the child
 - **Concurrent execution** — the model can call `task` multiple times in one response to run subagents in parallel
+
+### Nested subagents
+
+By default, subagents cannot delegate further. Set `maxSubagentDepth` to allow nesting:
+
+```typescript
+const search = new Agent({
+  name: "search",
+  description: "Focused file search",
+  model: openai("gpt-5.2"),
+  tools: { grep, listFiles },
+});
+
+const explore = new Agent({
+  name: "explore",
+  description: "Read-only codebase exploration",
+  model: openai("gpt-5.2"),
+  tools: { readFile, listFiles, grep },
+  subagents: [search], // explore can delegate to search
+});
+
+const agent = new Agent({
+  name: "dev",
+  model: openai("gpt-5.2"),
+  tools: { ...fsTools, bash },
+  subagents: [explore],
+  maxSubagentDepth: 2, // allow explore → search nesting
+});
+```
+
+The depth decrements at each level: the root agent has depth 2, its child `explore` gets depth 1 (can use `search`), and `search` gets depth 0 (no further delegation).
 
 ### Live subagent events
 
@@ -428,13 +460,16 @@ const agent = new Agent({
   model: openai("gpt-5.2"),
   tools: { ...fsTools, bash },
   subagents: [explore],
-  onSubagentEvent: (agentName, event) => {
+  onSubagentEvent: (path, event) => {
+    // path is the ancestry chain, e.g. ["explore"] or ["explore", "search"]
     if (event.type === "tool.done") {
-      console.log(`[${agentName}] ${event.toolName} completed`);
+      console.log(`[${path.join(" > ")}] ${event.toolName} completed`);
     }
   },
 });
 ```
+
+The `path` parameter is a `string[]` representing the full ancestry from outermost to innermost agent. For a direct subagent it's `["explore"]`; for a nested sub-subagent it's `["explore", "search"]`. Events from nested subagents automatically bubble up through the chain.
 
 The callback receives the same `AgentEvent` types as the parent's `run()` generator.
 
