@@ -15,6 +15,8 @@ import {
   type MCPServerConfig,
   type MCPConnection,
 } from "./mcp.js";
+import { discoverSkills, type SkillInfo, type SkillsConfig } from "./skills.js";
+import { createSkillTool } from "./tools/skill.js";
 
 // ── Token usage ──────────────────────────────────────────────────────
 
@@ -92,6 +94,10 @@ export class Agent {
   private mcpServerConfigs?: Record<string, MCPServerConfig>;
   private mcpConnection: MCPConnection | null = null;
 
+  /** Skills config — discovered lazily on first run. */
+  private skillsConfig?: SkillsConfig;
+  private cachedSkills: SkillInfo[] | null = null; // null = not loaded yet
+
   private cachedInstructions: string | undefined | null = null; // null = not loaded yet
 
   constructor(options: {
@@ -128,6 +134,12 @@ export class Agent {
      * Keys are server names (used to namespace tools when multiple servers are configured).
      */
     mcpServers?: Record<string, MCPServerConfig>;
+    /**
+     * Skills configuration. Skills are markdown instruction packages (SKILL.md files)
+     * that the LLM can load on demand via an auto-generated `skill` tool.
+     * Discovered lazily on first run.
+     */
+    skills?: SkillsConfig;
   }) {
     this.name = options.name;
     this.description = options.description;
@@ -142,6 +154,7 @@ export class Agent {
     this.onSubagentEvent = options.onSubagentEvent;
     this.subagents = options.subagents;
     this.mcpServerConfigs = options.mcpServers;
+    this.skillsConfig = options.skills;
 
     // Merge the task tool into the toolset when subagents are provided and depth > 0
     if (options.subagents?.length && this.maxSubagentDepth > 0) {
@@ -187,13 +200,19 @@ export class Agent {
       this.mcpConnection = await connectMCPServers(this.mcpServerConfigs);
     }
 
+    // Discover skills once per agent lifetime
+    if (this.skillsConfig && this.cachedSkills === null) {
+      this.cachedSkills = await discoverSkills(this.skillsConfig);
+    }
+
     const systemParts = [this.systemPrompt, this.cachedInstructions].filter(Boolean);
     const system = systemParts.length > 0 ? systemParts.join("\n\n") : undefined;
 
-    // Merge static tools with MCP tools
+    // Merge static tools with MCP tools and skill tool
     const allTools: ToolSet = {
-      ...(this.tools ?? {}),
+      ...(this.cachedSkills?.length ? { skill: createSkillTool(this.cachedSkills) } : {}),
       ...(this.mcpConnection?.tools ?? {}),
+      ...(this.tools ?? {}),
     };
 
     const tools =

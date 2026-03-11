@@ -40,6 +40,16 @@ export {
   type CompactionCheckInfo,
 } from "./session.js";
 
+// ── Skills ──────────────────────────────────────────────────────────
+
+export {
+  discoverSkills,
+  scanSkillFiles,
+  type SkillInfo,
+  type SkillsConfig,
+} from "./skills.js";
+export { createSkillTool } from "./tools/skill.js";
+
 // ── Instructions ────────────────────────────────────────────────────
 
 export { findInstructions, loadInstructions } from "./instructions.js";
