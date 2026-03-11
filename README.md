@@ -133,6 +133,7 @@ The full set of events emitted by `run()`:
 | `subagents` | — | Child agents available via the `task` tool (see [Subagents](#subagents)) |
 | `maxSubagentDepth` | `1` | Maximum nesting depth for subagents. `1` = direct subagents only, `2` = sub-subagents, etc. |
 | `mcpServers` | — | MCP servers to connect to (see [MCP Servers](#mcp-servers)) |
+| `skills` | — | Skills configuration (see [Skills](#skills)) |
 
 ## Sessions
 
@@ -519,6 +520,86 @@ Three transport types are supported:
 | `sse` | Remote servers via Server-Sent Events (legacy) |
 
 When multiple MCP servers are configured, tools are namespaced as `serverName_toolName` to avoid collisions. With a single server, tool names are used as-is.
+
+## Skills
+
+Skills are reusable instruction packages — markdown documents that get loaded into the LLM conversation on demand. They provide domain-specific knowledge, workflows, and reference material without executing arbitrary code. Think of them as context-injecting tools: the model calls a `skill` tool, and the skill's markdown content is returned as structured output.
+
+### Skill file format
+
+Each skill is a directory containing a `SKILL.md` file with YAML frontmatter:
+
+```
+my-skill/
+├── SKILL.md              # Required — skill definition
+├── references/           # Optional — auxiliary files the model can read
+│   └── api.md
+└── scripts/
+    └── setup.sh
+```
+
+```yaml
+---
+name: my-skill
+description: A short description of what this skill does
+---
+
+# My Skill
+
+Full markdown content here. This is the prompt that gets injected
+into the conversation when the skill is loaded.
+```
+
+Skill names must be lowercase alphanumeric with single hyphens (`^[a-z0-9]+(-[a-z0-9]+)*$`).
+
+### Configuration
+
+Point the agent at one or more directories containing skill folders:
+
+```typescript
+const agent = new Agent({
+  name: "dev",
+  model: openai("gpt-5.2"),
+  tools: { ...fsTools, bash },
+  skills: {
+    paths: ["./skills", "~/.my-app/skills"],
+  },
+});
+```
+
+Paths can be absolute, relative (resolved from cwd), or use `~/` for the home directory. When multiple paths contain a skill with the same name, later paths take precedence.
+
+### How it works
+
+When `skills` is configured, a `skill` tool is automatically added to the agent's toolset (similar to how the `task` tool is auto-generated for subagents). The tool's description includes an XML listing of all available skills, so the model knows what it can invoke.
+
+Skills are discovered lazily on the first `run()` call and cached for the agent's lifetime — the same pattern as MCP server connections.
+
+When the model calls the `skill` tool:
+
+1. The skill's markdown body is returned as structured XML output
+2. Auxiliary files in the skill directory (up to 10) are listed so the model can read them with other tools
+3. The base directory path is included so relative references resolve correctly
+
+Since the skill tool is a regular tool, it emits the standard `tool.start` and `tool.done` events. It also goes through the `approve` callback if one is configured.
+
+### Standalone usage
+
+The discovery and tool creation functions are exported separately for full control:
+
+```typescript
+import { discoverSkills, createSkillTool } from "@openharness/core";
+
+const skills = await discoverSkills({ paths: ["./skills"] });
+console.log(skills.map(s => s.name)); // inspect discovered skills
+
+// Create the tool manually and pass it in
+const agent = new Agent({
+  name: "dev",
+  model: openai("gpt-5.2"),
+  tools: { ...fsTools, bash, skill: createSkillTool(skills) },
+});
+```
 
 ## AI SDK 5 UI Integration
 
