@@ -47,7 +47,7 @@ describe("extractUserInput", () => {
     expect(result).toBe("hello world");
   });
 
-  it("returns ModelMessage[] for message with file", async () => {
+  it("returns ModelMessage[] with stripped base64 for data URL files", async () => {
     const msg = makeFileMessage(
       "image/png",
       "data:image/png;base64,iVBOR",
@@ -57,14 +57,27 @@ describe("extractUserInput", () => {
     const result = await extractUserInput([msg]);
     expect(Array.isArray(result)).toBe(true);
     const messages = result as any[];
-    expect(messages.length).toBeGreaterThan(0);
+    expect(messages).toHaveLength(1);
     expect(messages[0].role).toBe("user");
+    const content = messages[0].content;
+    expect(content).toHaveLength(2);
+    expect(content[0]).toEqual({ type: "text", text: "describe this image" });
+    expect(content[1]).toEqual({
+      type: "file",
+      data: "iVBOR",
+      mediaType: "image/png",
+      filename: "test.png",
+    });
   });
 
   it("returns ModelMessage[] for file-only (no text)", async () => {
     const msg = makeFileMessage("image/jpeg", "data:image/jpeg;base64,/9j/4A");
     const result = await extractUserInput([msg]);
     expect(Array.isArray(result)).toBe(true);
+    const messages = result as any[];
+    expect(messages[0].content).toHaveLength(1);
+    expect(messages[0].content[0].type).toBe("file");
+    expect(messages[0].content[0].data).toBe("/9j/4A");
   });
 
   it("uses only the last message", async () => {
