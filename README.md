@@ -12,7 +12,7 @@ OpenHarness is a pnpm monorepo with two packages and two example apps:
 
 | Package | Description |
 | --- | --- |
-| [`@openharness/core`](packages/core) | Agent, Session, tools, UI stream integration |
+| [`@openharness/core`](packages/core) | Agent, Session, Conversation, middleware, tools, UI stream integration |
 | [`@openharness/react`](packages/react) | React hooks and provider for AI SDK 5 chat UIs |
 | [`examples/cli`](examples/cli) | Interactive terminal agent with tool approval and subagent display |
 | [`examples/nextjs-demo`](examples/nextjs-demo) | Next.js chat app using both packages |
@@ -313,6 +313,135 @@ console.log(session.messages.length, session.turns, session.totalUsage);
 
 // Inject or modify messages
 session.messages.push({ role: "user", content: "Remember: always use TypeScript." });
+```
+
+## Middleware & Conversation
+
+Session bundles compaction, retry, persistence, turn tracking, and hooks into a single class. If you want more control — composing only the behaviors you need, or writing custom middleware — use the functional `Runner`/`Middleware`/`Conversation` API instead.
+
+### Runners and middleware
+
+A `Runner` is just an async generator function with the same shape as `agent.run()`. A `Middleware` transforms one Runner into another. You compose them with `apply()`:
+
+```typescript
+import {
+  Agent, Conversation, toRunner, apply,
+  withTurnTracking, withCompaction, withRetry, withPersistence, withHooks,
+} from "@openharness/core";
+
+const agent = new Agent({
+  name: "dev",
+  model: openai("gpt-5.2"),
+  tools: { ...fsTools, bash },
+});
+
+// Compose only the middleware you need
+const runner = apply(
+  toRunner(agent),
+  withTurnTracking(),
+  withCompaction({ contextWindow: 200_000, model: agent.model }),
+  withRetry({ maxRetries: 5 }),
+  withPersistence({ store: myStore, sessionId: "abc" }),
+);
+
+const chat = new Conversation({ runner });
+
+for await (const event of chat.send("Fix the bug in auth.ts")) {
+  if (event.type === "text.delta") process.stdout.write(event.text);
+}
+// chat.messages is automatically updated from the done event
+```
+
+Middleware listed first in `apply()` wraps outermost. The ordering above means: turn tracking brackets everything, compaction runs once before retries, retry wraps only the agent call, and persistence saves after a successful response.
+
+### Available middleware
+
+| Middleware | Description |
+| --- | --- |
+| `withTurnTracking()` | Emits `turn.start`/`turn.done` events. Maintains a turn counter across calls. |
+| `withCompaction(config)` | Auto-compacts history when approaching the context window limit. Tracks `lastInputTokens` from `step.done` events. |
+| `withRetry(config?)` | Retries on transient API errors (429, 500, etc.) with exponential backoff. Only retries before content has been streamed. |
+| `withPersistence(config)` | Auto-saves messages to a `SessionStore` on every `done` event. |
+| `withHooks(hooks)` | Applies `SessionHooks` (`onBeforeSend`, `onAfterResponse`, `onError`) around the inner runner. |
+
+### Conversation
+
+`Conversation` is a thin stateful wrapper over a composed Runner. It manages `messages` (updating from `done` events) and provides the same `toUIMessageStream()` and `toResponse()` methods as Session for AI SDK 5 integration:
+
+```typescript
+const chat = new Conversation({ runner, sessionId: "abc", store: myStore });
+
+// Optionally load previous messages
+await chat.load();
+
+// Send messages — chat.messages is updated automatically
+for await (const event of chat.send("hello")) { ... }
+
+// Manual save (separate from withPersistence auto-save)
+await chat.save();
+
+// Next.js route handler
+return chat.toResponse(input);
+```
+
+### Stream combinators
+
+For lightweight event stream transforms, four curried combinators are available:
+
+```typescript
+import { tap, filter, map, takeUntil } from "@openharness/core";
+
+// Log every event
+const logged = tap(e => console.log(e.type));
+for await (const event of logged(agent.run([], "hello"))) { ... }
+
+// Drop reasoning events (done events are never filtered)
+const noReasoning = filter(e => e.type !== "reasoning.delta");
+
+// Transform text events
+const uppercased = map(e =>
+  e.type === "text.delta" ? { ...e, text: e.text.toUpperCase() } : e
+);
+
+// Stop after first text completion
+const firstText = takeUntil(e => e.type === "text.done");
+```
+
+### Writing custom middleware
+
+A middleware is a function that takes a Runner and returns a Runner. Here's a simple logging middleware:
+
+```typescript
+import type { Middleware } from "@openharness/core";
+
+const withLogging: Middleware = (runner) =>
+  async function* (history, input, options) {
+    console.log(`Sending: ${typeof input === "string" ? input : "[messages]"}`);
+    for await (const event of runner(history, input, options)) {
+      if (event.type === "done") console.log(`Done: ${event.result}`);
+      yield event;
+    }
+  };
+
+const runner = apply(toRunner(agent), withLogging, withRetry());
+```
+
+### Composing with `pipe`
+
+For reusable middleware stacks, use `pipe()` to create a combined middleware:
+
+```typescript
+import { pipe } from "@openharness/core";
+
+const production = pipe(
+  withTurnTracking(),
+  withCompaction({ contextWindow: 200_000, model }),
+  withRetry({ maxRetries: 5 }),
+);
+
+// Apply the same stack to multiple runners
+const runner1 = production(toRunner(agent1));
+const runner2 = production(toRunner(agent2));
 ```
 
 ## Tools
@@ -695,28 +824,50 @@ const agent = new Agent({
 
 OpenHarness integrates with AI SDK 5's data stream protocol, so you can stream agent sessions directly to `useChat`-based React UIs.
 
-### Server: `session.toResponse()`
+### Server: `toResponse()`
 
-`Session` has two methods for streaming to the client:
+Both `Session` and `Conversation` have two methods for streaming to the client:
 
 - `toUIMessageStream(input)` — returns a `ReadableStream<UIMessageChunk>` that maps session events to AI SDK 5 typed chunks
 - `toResponse(input)` — wraps the stream in an HTTP `Response` with SSE headers, ready to return from any route handler
 
 ```typescript
 // app/api/chat/route.ts (Next.js)
-import { Agent, Session } from "@openharness/core";
+import {
+  Agent, Conversation, toRunner, apply,
+  withTurnTracking, withCompaction, withRetry, withPersistence,
+  extractUserInput, type SessionStore,
+} from "@openharness/core";
 
-const session = new Session({ agent, contextWindow: 128_000 });
+const store: SessionStore = {
+  async load(id) { return db.get(id); },
+  async save(id, messages) { await db.set(id, messages); },
+};
+
+const conversations = new Map<string, Conversation>();
+
+function getOrCreateConversation(id?: string): Conversation {
+  const convId = id ?? crypto.randomUUID();
+  let conv = conversations.get(convId);
+  if (!conv) {
+    const runner = apply(
+      toRunner(agent),
+      withTurnTracking(),
+      withCompaction({ contextWindow: 128_000, model: agent.model }),
+      withRetry(),
+      withPersistence({ store, sessionId: convId }),
+    );
+    conv = new Conversation({ runner, sessionId: convId, store });
+    conversations.set(convId, conv);
+  }
+  return conv;
+}
 
 export async function POST(req: Request) {
   const { id, messages } = await req.json();
-  const lastMessage = messages[messages.length - 1];
-  const text = lastMessage.parts
-    .filter((p: any) => p.type === "text")
-    .map((p: any) => p.text)
-    .join("");
-
-  return session.toResponse(text);
+  const conv = getOrCreateConversation(id);
+  const input = await extractUserInput(messages);
+  return conv.toResponse(input);
 }
 ```
 
@@ -803,7 +954,7 @@ import {
 
 | Example | Description | Run |
 | --- | --- | --- |
-| [`examples/cli`](examples/cli) | Interactive terminal agent with tool approval, subagent display, and compaction | `pnpm --filter cli-demo start` |
-| [`examples/nextjs-demo`](examples/nextjs-demo) | Next.js chat app with streaming, `useOpenHarness`, subagent/session status, and `announce` tool | `pnpm --filter nextjs-demo dev` |
+| [`examples/cli`](examples/cli) | Interactive terminal agent with tool approval, subagent display, and composed middleware | `pnpm --filter cli-demo start` |
+| [`examples/nextjs-demo`](examples/nextjs-demo) | Next.js chat app with streaming, `useOpenHarness`, composed middleware, and `announce` tool | `pnpm --filter nextjs-demo dev` |
 
 See [Getting Started](#getting-started) for setup instructions.
