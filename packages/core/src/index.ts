@@ -10,6 +10,17 @@ export {
   type SubagentEventFn,
 } from "./agent.js";
 
+// ── Agent Registry (background subagents) ───────────────────────────
+
+export {
+  AgentRegistry,
+  type SubagentBackground,
+  type AwaitMode,
+  type AgentStatus,
+  type SettledResult,
+  type BackgroundAgentConfig,
+} from "./agent-registry.js";
+
 // ── MCP ─────────────────────────────────────────────────────────────
 
 export {

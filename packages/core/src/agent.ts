@@ -17,6 +17,12 @@ import {
 } from "./mcp.js";
 import { discoverSkills, type SkillInfo, type SkillsConfig } from "./skills.js";
 import { createSkillTool } from "./tools/skill.js";
+import {
+  AgentRegistry,
+  normalizeBackgroundConfig,
+  type SubagentBackground,
+  type AwaitMode,
+} from "./agent-registry.js";
 
 // ── Token usage ──────────────────────────────────────────────────────
 
@@ -87,6 +93,12 @@ export class Agent {
   /** Original subagent templates (stored so nested children can inherit them). */
   readonly subagents?: Agent[];
 
+  /** Background config (stored so nested children can inherit it). */
+  readonly subagentBackground?: SubagentBackground;
+
+  /** Registry for background subagents. Only present when `subagentBackground` is configured. */
+  private agentRegistry?: AgentRegistry;
+
   /** Static tools provided at construction time. */
   readonly tools?: ToolSet;
 
@@ -128,6 +140,14 @@ export class Agent {
     /** Called for every event emitted by a subagent during a task tool call. */
     onSubagentEvent?: SubagentEventFn;
     /**
+     * Enable background execution for subagents. When enabled, the `task` tool
+     * gains a `background` parameter and lifecycle tools (`agent_status`,
+     * `agent_cancel`, `agent_await`) are auto-registered.
+     *
+     * Pass `true` for defaults, or an object for fine-grained control.
+     */
+    subagentBackground?: SubagentBackground;
+    /**
      * MCP servers to connect to. Tools from these servers are merged into
      * the agent's toolset. Connections are established lazily on first run.
      *
@@ -153,14 +173,35 @@ export class Agent {
     this.approve = options.approve;
     this.onSubagentEvent = options.onSubagentEvent;
     this.subagents = options.subagents;
+    this.subagentBackground = options.subagentBackground;
     this.mcpServerConfigs = options.mcpServers;
     this.skillsConfig = options.skills;
 
     // Merge the task tool into the toolset when subagents are provided and depth > 0
     if (options.subagents?.length && this.maxSubagentDepth > 0) {
+      const bgConfig = options.subagentBackground
+        ? normalizeBackgroundConfig(options.subagentBackground)
+        : undefined;
+      const registry = bgConfig ? new AgentRegistry(bgConfig) : undefined;
+      this.agentRegistry = registry;
+
       this.tools = {
         ...(options.tools ?? {}),
-        task: createTaskTool(options.subagents, this.maxSubagentDepth, this.onSubagentEvent),
+        task: createTaskTool(
+          options.subagents,
+          this.maxSubagentDepth,
+          this.onSubagentEvent,
+          registry,
+        ),
+        ...(registry && bgConfig!.tools.status
+          ? { agent_status: createStatusTool(registry) }
+          : {}),
+        ...(registry && bgConfig!.tools.cancel
+          ? { agent_cancel: createCancelTool(registry) }
+          : {}),
+        ...(registry && bgConfig!.tools.await
+          ? { agent_await: createAwaitTool(registry, bgConfig!.tools.await as AwaitMode[]) }
+          : {}),
       };
     } else {
       this.tools = options.tools;
@@ -171,6 +212,9 @@ export class Agent {
    * Close all MCP server connections. Call this when the agent is no longer needed.
    */
   async close(): Promise<void> {
+    if (this.agentRegistry) {
+      this.agentRegistry.cancelAll();
+    }
     if (this.mcpConnection) {
       await closeMCPClients(this.mcpConnection.clients);
       this.mcpConnection = null;
@@ -350,65 +394,103 @@ export class Agent {
   }
 }
 
-// ── Subagent task tool ───────────────────────────────────────────────
+// ── Subagent tools ──────────────────────────────────────────────────
+
+function createChildFromTemplate(
+  template: Agent,
+  remainingDepth: number,
+  onSubagentEvent?: SubagentEventFn,
+): Agent {
+  const nextDepth = remainingDepth - 1;
+  const childOnSubagentEvent: SubagentEventFn | undefined = onSubagentEvent
+    ? (childPath, event) => onSubagentEvent([template.name, ...childPath], event)
+    : undefined;
+
+  return new Agent({
+    name: template.name,
+    description: template.description,
+    model: template.model,
+    systemPrompt: template.systemPrompt,
+    tools: template.tools,
+    maxSteps: template.maxSteps,
+    temperature: template.temperature,
+    maxTokens: template.maxTokens,
+    instructions: template.instructions,
+    // No approve — subagents run autonomously
+    // Pass subagents + background config through when there is remaining depth
+    ...(nextDepth > 0 && template.subagents?.length
+      ? {
+          subagents: template.subagents,
+          maxSubagentDepth: nextDepth,
+          onSubagentEvent: childOnSubagentEvent,
+          subagentBackground: template.subagentBackground,
+        }
+      : {}),
+  });
+}
 
 function createTaskTool(
   subagents: Agent[],
   remainingDepth: number,
   onSubagentEvent?: SubagentEventFn,
+  registry?: AgentRegistry,
 ) {
   const names = subagents.map((a) => a.name);
   const byName = new Map(subagents.map((a) => [a.name, a]));
 
   const listing = subagents.map((a) => `- ${a.name}: ${a.description ?? a.name}`).join("\n");
 
-  return tool({
-    description: [
-      "Spawn a subagent to handle a task autonomously.",
-      "The subagent runs with its own tools, completes the work, and returns the result.",
-      "Launch multiple agents concurrently when possible by calling this tool multiple times in one response.",
+  const descriptionLines = [
+    "Spawn a subagent to handle a task autonomously.",
+    "The subagent runs with its own tools, completes the work, and returns the result.",
+    "Launch multiple agents concurrently when possible by calling this tool multiple times in one response.",
+  ];
+
+  if (registry) {
+    descriptionLines.push(
       "",
-      "Available agents:",
-      listing,
-    ].join("\n"),
-    inputSchema: z.object({
-      agent: z.enum(names as [string, ...string[]]).describe("Which agent to use"),
-      prompt: z.string().describe("Detailed task description for the subagent"),
-    }),
+      "Set background=true to spawn the agent in the background and return immediately with an agent ID.",
+      "Use agent_status, agent_await, or agent_cancel to manage background agents.",
+    );
+  }
+
+  descriptionLines.push("", "Available agents:", listing);
+
+  const baseSchema = z.object({
+    agent: z.enum(names as [string, ...string[]]).describe("Which agent to use"),
+    prompt: z.string().describe("Detailed task description for the subagent"),
+  });
+
+  const bgSchema = baseSchema.extend({
+    background: z
+      .boolean()
+      .optional()
+      .describe("If true, spawn in background and return immediately with an agent ID"),
+  });
+
+  const inputSchema = registry ? bgSchema : baseSchema;
+
+  return tool({
+    description: descriptionLines.join("\n"),
+    inputSchema,
     execute: async (
-      { agent: agentName, prompt }: { agent: string; prompt: string },
+      rawInput: z.infer<typeof bgSchema>,
       { abortSignal }: { abortSignal?: AbortSignal },
     ) => {
+      const { agent: agentName, prompt, background } = rawInput;
       const template = byName.get(agentName)!;
+      const child = createChildFromTemplate(template, remainingDepth, onSubagentEvent);
 
-      // Bubble nested events up with the current agent prepended to the path
-      const childOnSubagentEvent: SubagentEventFn | undefined = onSubagentEvent
-        ? (childPath, event) => onSubagentEvent([agentName, ...childPath], event)
-        : undefined;
+      // Background mode: spawn and return immediately
+      if (background && registry) {
+        const id = registry.spawn(agentName, child, prompt, {
+          signal: abortSignal,
+          onEvent: onSubagentEvent,
+        });
+        return `<background_spawn agent_id="${id}">\nAgent "${agentName}" spawned in background with id "${id}".\nUse agent_status, agent_await, or agent_cancel to manage it.\n</background_spawn>`;
+      }
 
-      const nextDepth = remainingDepth - 1;
-
-      // Fresh agent instance for each task — no shared state
-      const child = new Agent({
-        name: template.name,
-        model: template.model,
-        systemPrompt: template.systemPrompt,
-        tools: template.tools,
-        maxSteps: template.maxSteps,
-        temperature: template.temperature,
-        maxTokens: template.maxTokens,
-        instructions: template.instructions,
-        // No approve — subagents run autonomously
-        // Pass subagents through when there is remaining depth
-        ...(nextDepth > 0 && template.subagents?.length
-          ? {
-              subagents: template.subagents,
-              maxSubagentDepth: nextDepth,
-              onSubagentEvent: childOnSubagentEvent,
-            }
-          : {}),
-      });
-
+      // Foreground mode: run to completion
       let lastText = "";
       for await (const event of child.run([], prompt, { signal: abortSignal })) {
         onSubagentEvent?.([agentName], event);
@@ -416,8 +498,114 @@ function createTaskTool(
           lastText = event.text;
         }
       }
+      await child.close();
 
       return `<task_result>\n${lastText || "(no output)"}\n</task_result>`;
+    },
+  });
+}
+
+function createStatusTool(registry: AgentRegistry) {
+  return tool({
+    description: "Check the status of a background agent without blocking.",
+    inputSchema: z.object({
+      id: z.string().describe("The agent ID returned by a background task spawn"),
+    }),
+    execute: async ({ id }: { id: string }) => {
+      const status = registry.getStatus(id);
+      if (!status) return `Agent "${id}" not found.`;
+      if (status.status === "done") {
+        return `<agent_status id="${id}" status="done">\n${status.result}\n</agent_status>`;
+      }
+      if (status.status === "failed") {
+        return `<agent_status id="${id}" status="failed" error="${status.error ?? "unknown"}" />`;
+      }
+      if (status.status === "cancelled") {
+        return `<agent_status id="${id}" status="cancelled" />`;
+      }
+      return `<agent_status id="${id}" status="running" />`;
+    },
+  });
+}
+
+function createCancelTool(registry: AgentRegistry) {
+  return tool({
+    description: "Cancel a running background agent.",
+    inputSchema: z.object({
+      id: z.string().describe("The agent ID to cancel"),
+    }),
+    execute: async ({ id }: { id: string }) => {
+      const cancelled = registry.cancel(id);
+      return cancelled
+        ? `Agent "${id}" cancelled.`
+        : `Agent "${id}" is not running (may have already completed or been cancelled).`;
+    },
+  });
+}
+
+function createAwaitTool(registry: AgentRegistry, modes: AwaitMode[]) {
+  const modeDescriptions: Record<AwaitMode, string> = {
+    all: '"all": Wait for all agents to succeed. Fails fast if any agent fails.',
+    allSettled:
+      '"allSettled": Wait for all agents to finish. Returns both results and errors.',
+    any: '"any": Wait for the first agent to succeed. Only fails if all agents fail.',
+    race: '"race": Wait for the first agent to settle (succeed or fail).',
+  };
+
+  return tool({
+    description: [
+      "Wait for one or more background agents to complete.",
+      "",
+      "Modes:",
+      ...modes.map((m) => `- ${modeDescriptions[m]}`),
+    ].join("\n"),
+    inputSchema: z.object({
+      ids: z.array(z.string()).min(1).describe("Agent IDs to wait for"),
+      mode: z.enum(modes as [AwaitMode, ...AwaitMode[]]).describe("How to wait for agents"),
+    }),
+    execute: async ({ ids, mode }: { ids: string[]; mode: AwaitMode }) => {
+      switch (mode) {
+        case "all": {
+          try {
+            const results = await registry.awaitAll(ids);
+            const entries = [...results.entries()].map(
+              ([id, result]) => `<agent id="${id}">\n${result}\n</agent>`,
+            );
+            return `<await_result mode="all">\n${entries.join("\n")}\n</await_result>`;
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            return `<await_result mode="all" error="${msg}" />`;
+          }
+        }
+
+        case "allSettled": {
+          const results = await registry.awaitAllSettled(ids);
+          const entries = [...results.entries()].map(([id, r]) => {
+            if (r.status === "done") {
+              return `<agent id="${id}" status="done">\n${r.result}\n</agent>`;
+            }
+            return `<agent id="${id}" status="${r.status}" error="${r.error ?? "unknown"}" />`;
+          });
+          return `<await_result mode="allSettled">\n${entries.join("\n")}\n</await_result>`;
+        }
+
+        case "any": {
+          try {
+            const { id, result } = await registry.awaitAny(ids);
+            return `<await_result mode="any" winner="${id}">\n${result}\n</await_result>`;
+          } catch {
+            return `<await_result mode="any" error="All agents failed." />`;
+          }
+        }
+
+        case "race": {
+          const settled = await registry.awaitRace(ids);
+          if (settled.error) {
+            return `<await_result mode="race" settled="${settled.id}" status="failed" error="${settled.error}" />`;
+          }
+          return `<await_result mode="race" settled="${settled.id}">\n${settled.result}\n</await_result>`;
+        }
+      }
     },
   });
 }

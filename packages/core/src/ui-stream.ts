@@ -26,6 +26,7 @@ export function sessionEventsToUIStream(
       // Track subagent start times and names for duration calculation and done/error events
       const subagentStartTimes = new Map<string, number>();
       const subagentNames = new Map<string, string>();
+      const backgroundTaskIds = new Set<string>();
 
       const enqueue = (chunk: OHChunk) => controller.enqueue(chunk);
 
@@ -110,10 +111,17 @@ export function sessionEventsToUIStream(
 
               // If this is a task tool (subagent), emit subagent start data part
               if (event.toolName === "task") {
-                const input = event.input as { agent?: string; prompt?: string };
+                const input = event.input as {
+                  agent?: string;
+                  prompt?: string;
+                  background?: boolean;
+                };
                 if (input.agent) {
                   subagentStartTimes.set(event.toolCallId, Date.now());
                   subagentNames.set(event.toolCallId, input.agent);
+                  if (input.background) {
+                    backgroundTaskIds.add(event.toolCallId);
+                  }
                   enqueue({
                     type: "data-oh:subagent.start",
                     data: {
@@ -135,7 +143,8 @@ export function sessionEventsToUIStream(
               });
 
               // If this is a task tool (subagent), emit subagent done data part
-              if (event.toolName === "task") {
+              // Skip for background spawns — the agent is still running
+              if (event.toolName === "task" && !backgroundTaskIds.has(event.toolCallId)) {
                 const startTime = subagentStartTimes.get(event.toolCallId);
                 const durationMs = startTime ? Date.now() - startTime : 0;
                 const agentName = subagentNames.get(event.toolCallId) ?? "unknown";
@@ -149,6 +158,11 @@ export function sessionEventsToUIStream(
                     path: [agentName],
                   },
                 });
+              } else if (event.toolName === "task") {
+                // Clean up tracking for background spawns
+                subagentStartTimes.delete(event.toolCallId);
+                subagentNames.delete(event.toolCallId);
+                backgroundTaskIds.delete(event.toolCallId);
               }
               break;
             }
@@ -165,6 +179,7 @@ export function sessionEventsToUIStream(
                 const agentName = subagentNames.get(event.toolCallId) ?? "unknown";
                 subagentStartTimes.delete(event.toolCallId);
                 subagentNames.delete(event.toolCallId);
+                backgroundTaskIds.delete(event.toolCallId);
                 enqueue({
                   type: "data-oh:subagent.error",
                   data: {
