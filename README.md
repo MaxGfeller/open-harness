@@ -8,14 +8,16 @@ OpenHarness is an open source project based on Vercel's AI SDK that aims to prov
 
 ## Packages
 
-OpenHarness is a pnpm monorepo with two packages and two example apps:
+OpenHarness is a pnpm monorepo with three packages and three example apps:
 
 | Package | Description |
 | --- | --- |
 | [`@openharness/core`](packages/core) | Agent, Session, Conversation, middleware, tools, UI stream integration |
 | [`@openharness/react`](packages/react) | React hooks and provider for AI SDK 5 chat UIs |
+| [`@openharness/vue`](packages/vue) | Vue 3 composables and provider for AI SDK 5 chat UIs |
 | [`examples/cli`](examples/cli) | Interactive terminal agent with tool approval and subagent display |
-| [`examples/nextjs-demo`](examples/nextjs-demo) | Next.js chat app using both packages |
+| [`examples/nextjs-demo`](examples/nextjs-demo) | Next.js chat app using `@openharness/react` |
+| [`examples/nuxt-demo`](examples/nuxt-demo) | Nuxt 4 chat app using `@openharness/vue` |
 
 ## Getting Started
 
@@ -46,6 +48,16 @@ A chat app with streaming, tool visualization, subagent status, and an `announce
 cp examples/nextjs-demo/.env.example examples/nextjs-demo/.env
 # Edit .env and add your OPENAI_API_KEY
 pnpm --filter nextjs-demo dev
+```
+
+Then open http://localhost:3000.
+
+### Run the Nuxt example
+
+The same chat experience built with Vue 3 and Nuxt 4.
+
+```bash
+pnpm --filter nuxt-demo dev
 ```
 
 Then open http://localhost:3000.
@@ -938,6 +950,68 @@ function Chat() {
 
 **`OpenHarnessProvider`** — context provider that holds subagent, session, and sandbox state. Wrap your app (or chat component) with this.
 
+### Client: `@openharness/vue`
+
+The Vue package provides the same functionality as composables for Vue 3 and Nuxt:
+
+```vue
+<script setup lang="ts">
+import {
+  OpenHarnessProvider,
+  useOpenHarness,
+  useSubagentStatus,
+  useSessionStatus,
+} from "@openharness/vue";
+</script>
+
+<template>
+  <OpenHarnessProvider>
+    <Chat />
+  </OpenHarnessProvider>
+</template>
+```
+
+```vue
+<script setup lang="ts">
+import { ref } from "vue";
+import { useOpenHarness, useSubagentStatus, useSessionStatus } from "@openharness/vue";
+
+const chat = useOpenHarness({ endpoint: "/api/chat" });
+const subagent = useSubagentStatus();
+const session = useSessionStatus();
+const input = ref("");
+
+function send() {
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = "";
+  chat.sendMessage({ text });
+}
+</script>
+
+<template>
+  <div>
+    <div v-for="msg in chat.messages" :key="msg.id">
+      <template v-for="(part, i) in msg.parts" :key="i">
+        <span v-if="part.type === 'text'">{{ part.text }}</span>
+      </template>
+    </div>
+    <form @submit.prevent="send">
+      <input v-model="input" placeholder="Type a message..." />
+      <button type="submit">Send</button>
+    </form>
+  </div>
+</template>
+```
+
+**`useOpenHarness(config)`** — creates a chat session connected to your API endpoint. Returns an AI SDK 5 `Chat` instance with reactive properties (`messages`, `status`, `sendMessage`, `stop`, etc.), typed with `OHUIMessage`.
+
+**`useSubagentStatus()`** — returns a computed ref deriving reactive state from `data-oh:subagent.*` events.
+
+**`useSessionStatus()`** — returns a computed ref tracking turn index, compaction state, and retry info.
+
+**`OpenHarnessProvider`** — renderless wrapper component that provides shared subagent, session, and sandbox state via Vue's `provide`/`inject`.
+
 ### Custom data part types
 
 If you're building custom UI components that consume the stream directly, the core package exports typed data part types and guards:
@@ -955,6 +1029,7 @@ import {
 | Example | Description | Run |
 | --- | --- | --- |
 | [`examples/cli`](examples/cli) | Interactive terminal agent with tool approval, subagent display, and composed middleware | `pnpm --filter cli-demo start` |
-| [`examples/nextjs-demo`](examples/nextjs-demo) | Next.js chat app with streaming, `useOpenHarness`, composed middleware, and `announce` tool | `pnpm --filter nextjs-demo dev` |
+| [`examples/nextjs-demo`](examples/nextjs-demo) | Next.js chat app with streaming, `@openharness/react`, composed middleware, and `announce` tool | `pnpm --filter nextjs-demo dev` |
+| [`examples/nuxt-demo`](examples/nuxt-demo) | Nuxt 4 chat app with streaming, `@openharness/vue`, composed middleware, and `announce` tool | `pnpm --filter nuxt-demo dev` |
 
 See [Getting Started](#getting-started) for setup instructions.
