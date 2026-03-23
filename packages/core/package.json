@@ -32,8 +32,19 @@
     "ai",
     "llm",
     "tools",
-    "mcp"
+    "mcp",
+    "middleware",
+    "runner"
   ],
+  "homepage": "https://github.com/MaxGfeller/open-harness/tree/main/packages/core#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MaxGfeller/open-harness.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/MaxGfeller/open-harness/issues"
+  },
   "license": "ISC",
   "dependencies": {
     "@ai-sdk/mcp": "^1.0.21",
