@@ -67,10 +67,8 @@ Then open http://localhost:3000.
 The `Agent` class is the core primitive. An agent wraps a language model, a set of tools, and a multi-step execution loop into a stateless executor that you can `run()` with a message history and new input.
 
 ```typescript
-import { Agent } from "@openharness/core";
+import { Agent, fsTools, bash } from "@openharness/core";
 import { openai } from "@ai-sdk/openai";
-import { fsTools } from "@openharness/core/tools/fs";
-import { bash } from "@openharness/core/tools/bash";
 
 const agent = new Agent({
   name: "dev",
@@ -460,7 +458,7 @@ const runner2 = production(toRunner(agent2));
 
 Tools use the Vercel AI SDK `tool()` helper with Zod schemas. OpenHarness ships a set of built-in tools that you can use as-is, compose, or replace entirely.
 
-### Filesystem tools (`@openharness/core/tools/fs`)
+### Filesystem tools
 
 | Tool | Description |
 | --- | --- |
@@ -471,11 +469,11 @@ Tools use the Vercel AI SDK `tool()` helper with Zod schemas. OpenHarness ships 
 | `grep` | Regex search across files (skips `node_modules`, `.git`) |
 | `deleteFile` | Delete a file or directory |
 
-All are exported individually and also grouped as `fsTools`.
+All are exported individually and also grouped as `fsTools`. Available from the main entry point (`@openharness/core`) or the sub-path (`@openharness/core/tools/fs`).
 
-### Bash tool (`@openharness/core/tools/bash`)
+### Bash tool
 
-Runs arbitrary shell commands via `bash -c`. Configurable timeout (default 30s, max 5min) and automatic output truncation.
+Runs arbitrary shell commands via `bash -c`. Configurable timeout (default 30s, max 5min) and automatic output truncation. Available from the main entry point (`@openharness/core`) or the sub-path (`@openharness/core/tools/bash`).
 
 ### Custom tools
 

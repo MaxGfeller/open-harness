@@ -23,10 +23,8 @@ npm install @openharness/core
 ### Agent (stateless)
 
 ```typescript
-import { Agent } from "@openharness/core";
+import { Agent, fsTools, bash } from "@openharness/core";
 import { openai } from "@ai-sdk/openai";
-import { fsTools } from "@openharness/core/tools/fs";
-import { bash } from "@openharness/core/tools/bash";
 
 const agent = new Agent({
   name: "dev",
