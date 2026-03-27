@@ -61,6 +61,10 @@ Context provider that holds subagent, session, and sandbox state. Wrap your app 
 
 Creates a chat session connected to your API endpoint. Returns the same interface as AI SDK 5's `useChat` (`messages`, `sendMessage`, `status`, `stop`, etc.), typed with `OHUIMessage`.
 
+If you pass `messages`, the hook will also hydrate them when they arrive after the first render, which is useful for async persistence loads.
+
+`onFinish` receives the full finish event, including `isAbort`, so persistence code can skip saving aborted assistant messages when desired.
+
 ### `useSubagentStatus()`
 
 Derives reactive state from `data-oh:subagent.*` stream events:
