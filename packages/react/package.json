@@ -1,6 +1,6 @@
 {
   "name": "@openharness/react",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "type": "module",
   "description": "React hooks and provider for OpenHarness AI SDK 5 integration",
   "exports": {
