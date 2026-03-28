@@ -132,7 +132,35 @@ export { withHooks } from "./middleware/hooks.js";
 
 export { Conversation, type ConversationOptions } from "./conversation.js";
 
-// ── Tools ─────────────────────────────────────────────────────────
+// ── Providers ────────────────────────────────────────────────────
+
+export type {
+  FsProvider,
+  FileStat,
+  DirEntry,
+  ShellProvider,
+  ShellResult,
+  Environment,
+} from "./providers/types.js";
+
+export {
+  NodeFsProvider,
+  NodeShellProvider,
+  FileTooLargeError,
+} from "./providers/node.js";
+
+export type {
+  NodeFsProviderOptions,
+  NodeShellProviderOptions,
+} from "./providers/node.js";
+
+// ── Tool Factories ──────────────────────────────────────────────
+
+export { createFsTools, type CreateFsToolsOptions } from "./tools/create-fs-tools.js";
+export { createBashTool } from "./tools/create-bash-tool.js";
+export { createLocalTools } from "./tools/create-local-tools.js";
+
+// ── Tools (pre-built with Node provider) ────────────────────────
 
 export {
   readFile,
