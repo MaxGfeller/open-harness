@@ -15,6 +15,10 @@
     "./tools/bash": {
       "types": "./dist/tools/bash.d.ts",
       "import": "./dist/tools/bash.js"
+    },
+    "./providers": {
+      "types": "./dist/providers/index.d.ts",
+      "import": "./dist/providers/index.js"
     }
   },
   "files": [
