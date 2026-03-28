@@ -105,5 +105,12 @@ export default defineEventHandler(async (event) => {
   const conv = getOrCreateConversation(id);
 
   const input = await extractUserInput(messages);
-  return conv.toResponse(input);
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+
+  event.node.req.once("aborted", abort);
+  event.node.req.once("close", abort);
+  event.node.res.once("close", abort);
+
+  return conv.toResponse(input, { signal: controller.signal });
 });

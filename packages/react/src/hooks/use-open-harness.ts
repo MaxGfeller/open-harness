@@ -1,8 +1,17 @@
-import { useRef } from "react";
-import { useChat, type UseChatHelpers, Chat } from "@ai-sdk/react";
+import { useEffect, useRef } from "react";
+import { useChat, type UseChatHelpers } from "@ai-sdk/react";
 import type { OHUIMessage } from "@openharness/core";
 import { useOHContext } from "../context.js";
 import { createOHTransport, type OHTransportOptions } from "../transport.js";
+
+export interface UseOpenHarnessFinishEvent {
+  message: OHUIMessage;
+  messages: OHUIMessage[];
+  isAbort: boolean;
+  isDisconnect: boolean;
+  isError: boolean;
+  finishReason?: string;
+}
 
 export interface UseOpenHarnessConfig extends OHTransportOptions {
   /** Your SSE endpoint URL. */
@@ -11,8 +20,8 @@ export interface UseOpenHarnessConfig extends OHTransportOptions {
   id?: string;
   /** Initial messages to populate the chat with (e.g. loaded from persistence). */
   messages?: OHUIMessage[];
-  /** Called when the assistant message finishes streaming. */
-  onFinish?: (message: OHUIMessage) => void;
+  /** Called when the assistant message finishes streaming, including abort/error metadata. */
+  onFinish?: (event: UseOpenHarnessFinishEvent) => void;
 }
 
 /**
@@ -27,20 +36,23 @@ export function useOpenHarness(
   config: UseOpenHarnessConfig,
 ): UseChatHelpers<OHUIMessage> {
   const { dispatch } = useOHContext();
+  const chat = useChat<OHUIMessage>({
+    id: config.id,
+    messages: config.messages,
+    transport: createOHTransport<OHUIMessage>(config.endpoint, config),
+    onData: (part) => dispatch(part),
+    onFinish: config.onFinish,
+  });
+  const hydratedChatIdRef = useRef<string | null>(null);
 
-  // Create a stable Chat instance so useChat doesn't recreate on every render
-  const chatRef = useRef<Chat<OHUIMessage> | null>(null);
-  if (!chatRef.current) {
-    chatRef.current = new Chat<OHUIMessage>({
-      id: config.id,
-      messages: config.messages,
-      transport: createOHTransport<OHUIMessage>(config.endpoint, config),
-      onData: (part) => dispatch(part),
-      onFinish: config.onFinish
-        ? ({ message }) => config.onFinish!(message)
-        : undefined,
-    });
-  }
+  useEffect(() => {
+    if (!config.messages?.length) return;
+    if (hydratedChatIdRef.current === chat.id) return;
+    if (chat.messages.length > 0) return;
 
-  return useChat<OHUIMessage>({ chat: chatRef.current });
+    chat.setMessages(config.messages);
+    hydratedChatIdRef.current = chat.id;
+  }, [chat.id, chat.messages.length, chat.setMessages, config.messages]);
+
+  return chat;
 }

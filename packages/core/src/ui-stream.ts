@@ -44,14 +44,28 @@ export function sessionEventsToUIStream(
         }
       };
 
+      let abortEmitted = false;
+      let drainingAfterAbort = false;
+
+      const emitAbort = () => {
+        if (abortEmitted) return;
+        abortEmitted = true;
+        enqueue({ type: "abort", reason: "aborted" } as OHChunk);
+      };
+
       // Emit stream start
       enqueue({ type: "start" } as OHChunk);
 
       try {
         for await (const event of events) {
           if (options?.signal?.aborted) {
-            enqueue({ type: "abort", reason: "aborted" } as OHChunk);
-            break;
+            drainingAfterAbort = true;
+            emitAbort();
+          }
+
+          if (drainingAfterAbort) {
+            // Let the runner finish its own abort cleanup without sending more UI chunks.
+            continue;
           }
 
           switch (event.type) {
@@ -296,6 +310,10 @@ export function sessionEventsToUIStream(
             case "compaction.summary":
               break;
           }
+        }
+
+        if (options?.signal?.aborted) {
+          emitAbort();
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

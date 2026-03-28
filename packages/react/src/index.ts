@@ -10,6 +10,7 @@ export {
 export {
   useOpenHarness,
   type UseOpenHarnessConfig,
+  type UseOpenHarnessFinishEvent,
 } from "./hooks/use-open-harness.js";
 
 export {

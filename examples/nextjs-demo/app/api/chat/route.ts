@@ -106,5 +106,5 @@ export async function POST(req: Request) {
   const conv = getOrCreateConversation(id);
 
   const input = await extractUserInput(messages);
-  return conv.toResponse(input);
+  return conv.toResponse(input, { signal: req.signal });
 }

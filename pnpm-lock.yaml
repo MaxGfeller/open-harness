@@ -143,6 +143,10 @@ importers:
         version: 5.9.3
 
   packages/react:
+    dependencies:
+      ai:
+        specifier: ^6.0.97
+        version: 6.0.116(zod@4.3.6)
     devDependencies:
       '@ai-sdk/react':
         specifier: ^3.0.0
@@ -156,9 +160,6 @@ importers:
       '@types/react':
         specifier: ^19.0.0
         version: 19.2.14
-      ai:
-        specifier: ^6.0.97
-        version: 6.0.116(zod@4.3.6)
       react:
         specifier: ^19.1.0
         version: 19.2.4

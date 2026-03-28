@@ -394,7 +394,7 @@ for await (const event of chat.send("hello")) { ... }
 await chat.save();
 
 // Next.js route handler
-return chat.toResponse(input);
+return chat.toResponse(input, { signal: req.signal });
 ```
 
 ### Stream combinators
@@ -851,7 +851,7 @@ OpenHarness integrates with AI SDK 5's data stream protocol, so you can stream a
 Both `Session` and `Conversation` have two methods for streaming to the client:
 
 - `toUIMessageStream(input)` — returns a `ReadableStream<UIMessageChunk>` that maps session events to AI SDK 5 typed chunks
-- `toResponse(input)` — wraps the stream in an HTTP `Response` with SSE headers, ready to return from any route handler
+- `toResponse(input, { signal: req.signal })` — wraps the stream in an HTTP `Response` with SSE headers, ready to return from any route handler
 
 ```typescript
 // app/api/chat/route.ts (Next.js)
@@ -889,7 +889,7 @@ export async function POST(req: Request) {
   const { id, messages } = await req.json();
   const conv = getOrCreateConversation(id);
   const input = await extractUserInput(messages);
-  return conv.toResponse(input);
+  return conv.toResponse(input, { signal: req.signal });
 }
 ```
 

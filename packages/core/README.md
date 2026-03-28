@@ -93,7 +93,7 @@ const chat = new Conversation({ runner });
 export async function POST(req: Request) {
   const { messages } = await req.json();
   const input = await extractUserInput(messages);
-  return chat.toResponse(input);
+  return chat.toResponse(input, { signal: req.signal });
 }
 ```
 

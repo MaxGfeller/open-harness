@@ -3,6 +3,7 @@ import type { AgentEvent } from "../agent.js";
 import type { Runner } from "../runner.js";
 import type { SessionEvent } from "../session.js";
 import { Conversation } from "../conversation.js";
+import { withPersistence } from "../middleware/persistence.js";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -233,6 +234,58 @@ describe("Conversation", () => {
       expect(chunks[0].type).toBe("start");
       expect(chunks.find((c: any) => c.type === "text-delta")).toBeDefined();
       expect(chunks.find((c: any) => c.type === "finish")).toBeDefined();
+    });
+
+    it("drains aborted runs so cleanup can update and persist messages", async () => {
+      const persistedMessages = [{ role: "user" as const, content: "hi" }];
+      const store = {
+        load: vi.fn(),
+        save: vi.fn().mockResolvedValue(undefined),
+      };
+      const runner: Runner = async function* (_history, input, options) {
+        yield { type: "text.delta", text: "partial" } as AgentEvent;
+
+        await new Promise<void>((resolve) => {
+          if (options?.signal?.aborted) {
+            resolve();
+            return;
+          }
+          options?.signal?.addEventListener("abort", () => resolve(), { once: true });
+        });
+
+        yield { type: "error", error: new Error("aborted") } as AgentEvent;
+        yield {
+          type: "done",
+          result: "error",
+          messages: typeof input === "string" ? persistedMessages : input,
+          totalUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        } as AgentEvent;
+      };
+
+      const conv = new Conversation({
+        runner: withPersistence({ store, sessionId: "test-session" })(runner),
+      });
+      const controller = new AbortController();
+      const reader = conv.toUIMessageStream("hi", {
+        signal: controller.signal,
+      }).getReader();
+      const chunks: any[] = [];
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        if (value.type === "text-delta") {
+          controller.abort("stop");
+        }
+      }
+
+      expect(chunks.find((c: any) => c.type === "abort")).toEqual({
+        type: "abort",
+        reason: "aborted",
+      });
+      expect(conv.messages).toEqual(persistedMessages);
+      expect(store.save).toHaveBeenCalledWith("test-session", persistedMessages);
     });
   });
 

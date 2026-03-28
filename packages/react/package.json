@@ -1,6 +1,6 @@
 {
   "name": "@openharness/react",
-  "version": "0.2.2",
+  "version": "0.2.4",
   "type": "module",
   "description": "React hooks and provider for OpenHarness AI SDK 5 integration",
   "exports": {
@@ -19,8 +19,11 @@
   },
   "peerDependencies": {
     "@ai-sdk/react": "^3.0.0",
-    "@openharness/core": "workspace:*",
-    "react": "^18.0.0 || ^19.0.0"
+    "@openharness/core": "^0.4.4",
+    "react": "^18 || ~19.0.1 || ~19.1.2 || ^19.2.1"
+  },
+  "dependencies": {
+    "ai": "^6.0.97"
   },
   "homepage": "https://github.com/MaxGfeller/open-harness/tree/main/packages/react#readme",
   "repository": {
@@ -44,7 +47,6 @@
     "@openharness/core": "workspace:*",
     "@testing-library/react": "^16.3.0",
     "@types/react": "^19.0.0",
-    "ai": "^6.0.97",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "typescript": "^5.9.3"
