@@ -280,6 +280,9 @@ export class Agent {
     let stepNumber = 0;
     let stepText = "";
     let stepReasoning = "";
+    const completedStepMessages: ModelMessage[] = [];
+    let doneEmitted = false;
+    let abortReason: string | undefined;
 
     try {
       for await (const part of stream.fullStream) {
@@ -341,6 +344,11 @@ export class Agent {
             break;
 
           case "finish-step":
+            completedStepMessages.push(
+              ...buildAbortedStepMessages(stepText, stepReasoning),
+            );
+            stepText = "";
+            stepReasoning = "";
             yield {
               type: "step.done",
               stepNumber,
@@ -368,6 +376,7 @@ export class Agent {
 
             const response = await stream.response;
             messages.push(...response.messages);
+            doneEmitted = true;
 
             yield {
               type: "done",
@@ -377,7 +386,32 @@ export class Agent {
             };
             break;
           }
+
+          case "abort":
+            abortReason = part.reason ?? "aborted";
+            break;
         }
+      }
+
+      if (!doneEmitted && abortReason !== undefined) {
+        yield {
+          type: "error",
+          error: new Error(abortReason),
+        };
+        yield {
+          type: "done",
+          result: "stopped",
+          messages: [
+            ...messages,
+            ...completedStepMessages,
+            ...buildAbortedStepMessages(stepText, stepReasoning),
+          ],
+          totalUsage: {
+            inputTokens: undefined,
+            outputTokens: undefined,
+            totalTokens: undefined,
+          },
+        };
       }
     } catch (error) {
       yield {
@@ -618,6 +652,33 @@ function toTokenUsage(usage: LanguageModelUsage): TokenUsage {
     outputTokens: usage.outputTokens,
     totalTokens: usage.totalTokens,
   };
+}
+
+function buildAbortedStepMessages(
+  text: string,
+  reasoning: string,
+): ModelMessage[] {
+  const parts: Array<
+    | { type: "reasoning"; text: string }
+    | { type: "text"; text: string }
+  > = [];
+
+  if (reasoning) {
+    parts.push({ type: "reasoning", text: reasoning });
+  }
+
+  if (text) {
+    parts.push({ type: "text", text });
+  }
+
+  if (parts.length === 0) return [];
+
+  return [
+    {
+      role: "assistant",
+      content: parts.length === 1 && parts[0].type === "text" ? text : parts,
+    },
+  ];
 }
 
 function wrapToolsWithApproval(tools: ToolSet, approve: ApproveFn): ToolSet {
