@@ -1,0 +1,12 @@
+{
+  "mappings": [
+    { "tool_name": "readFile", "action_type": "filesystem.file.read" },
+    { "tool_name": "writeFile", "action_type": "filesystem.file.create" },
+    { "tool_name": "editFile", "action_type": "filesystem.file.modify" },
+    { "tool_name": "deleteFile", "action_type": "filesystem.file.delete" },
+    { "tool_name": "moveFile", "action_type": "filesystem.file.move" },
+    { "tool_name": "listDirectory", "action_type": "filesystem.file.read" },
+    { "tool_name": "createDirectory", "action_type": "filesystem.directory.create" },
+    { "tool_name": "bash", "action_type": "system.command.execute" }
+  ]
+}

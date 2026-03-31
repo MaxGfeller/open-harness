@@ -127,6 +127,7 @@ export { withCompaction, type CompactionConfig } from "./middleware/compaction.j
 export { withTurnTracking } from "./middleware/turn-tracking.js";
 export { withPersistence, type PersistenceConfig } from "./middleware/persistence.js";
 export { withHooks } from "./middleware/hooks.js";
+export { withActionReceipts, type ActionReceiptsConfig } from "./middleware/action-receipts.js";
 
 // ── Conversation ───────────────────────────────────────────────────
 
