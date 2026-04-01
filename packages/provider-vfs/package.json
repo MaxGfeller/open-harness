@@ -25,7 +25,7 @@
     "sandbox",
     "openharness"
   ],
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "@openharness/core": "workspace:*"
   },

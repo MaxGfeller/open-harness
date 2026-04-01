@@ -99,3 +99,7 @@ See the full documentation at **[docs.open-harness.dev](https://docs.open-harnes
 - [MCP Servers](https://docs.open-harness.dev/advanced/mcp-servers) — Model Context Protocol integration
 - [Skills](https://docs.open-harness.dev/advanced/skills) — on-demand instruction packages
 - [UI Integration](https://docs.open-harness.dev/ui-integration/server-streaming) — React and Vue streaming
+
+## License
+
+MIT — see [LICENSE](./LICENSE) for details.

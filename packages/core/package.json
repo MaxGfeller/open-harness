@@ -41,7 +41,7 @@
   "bugs": {
     "url": "https://github.com/MaxGfeller/open-harness/issues"
   },
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "@ai-sdk/mcp": "^1.0.21",
     "ai": "^6.0.97",
