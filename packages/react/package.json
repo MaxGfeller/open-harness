@@ -13,13 +13,16 @@
     "dist",
     "README.md"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
     "@ai-sdk/react": "^3.0.0",
-    "@openharness/core": "^0.4.4",
+    "@openharness/core": "workspace:^",
     "react": "^18 || ~19.0.1 || ~19.1.2 || ^19.2.1"
   },
   "dependencies": {

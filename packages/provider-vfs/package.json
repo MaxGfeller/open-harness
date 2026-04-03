@@ -13,6 +13,9 @@
     "dist",
     "README.md"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit"
@@ -27,7 +30,7 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "@openharness/core": "workspace:*"
+    "@openharness/core": "workspace:^"
   },
   "peerDependencies": {
     "@platformatic/vfs": ">=0.3.0"

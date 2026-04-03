@@ -13,13 +13,16 @@
     "dist",
     "README.md"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
     "@ai-sdk/vue": "^3.0.0",
-    "@openharness/core": "workspace:*",
+    "@openharness/core": "workspace:^",
     "vue": "^3.3.4"
   },
   "homepage": "https://github.com/MaxGfeller/open-harness/tree/main/packages/vue#readme",
