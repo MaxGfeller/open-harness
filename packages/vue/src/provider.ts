@@ -40,6 +40,7 @@ export const OpenHarnessProvider = defineComponent({
             name: path[path.length - 1],
             task: data?.task ?? "",
             status: "running",
+            sessionId: data?.sessionId,
             path,
             startedAt: Date.now(),
           };
@@ -58,6 +59,7 @@ export const OpenHarnessProvider = defineComponent({
           next.set(key, {
             ...existing,
             status: "done",
+            sessionId: data?.sessionId ?? existing.sessionId,
             durationMs: data?.durationMs ?? Date.now() - existing.startedAt,
           });
           subagents.value = next;
@@ -73,6 +75,7 @@ export const OpenHarnessProvider = defineComponent({
           next.set(key, {
             ...existing,
             status: "error",
+            sessionId: data?.sessionId ?? existing.sessionId,
             error: data?.error ?? "Unknown error",
           });
           subagents.value = next;
