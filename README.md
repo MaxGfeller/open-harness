@@ -70,6 +70,14 @@ const chat = new Conversation({ runner });
 for await (const event of chat.send("Fix the bug")) { /* ... */ }
 ```
 
+## Subagents
+
+Built-in subagents stay stateless by default, but you can now opt into:
+
+- Dynamic subagent catalogs resolved at run time
+- Resumable subagent sessions built on top of `Session`
+- Background runs with separate run IDs and session IDs
+
 ## Examples
 
 | Example | Run |
@@ -95,7 +103,7 @@ See the full documentation at **[docs.open-harness.dev](https://docs.open-harnes
 - [Sessions](https://docs.open-harness.dev/core/sessions) — compaction, retry, persistence, hooks
 - [Middleware](https://docs.open-harness.dev/core/middleware) — composable middleware and the Conversation API
 - [Tools](https://docs.open-harness.dev/tools/built-in-tools) — filesystem, bash, custom tools, permissions
-- [Subagents](https://docs.open-harness.dev/advanced/subagents) — nested delegation and background execution
+- [Subagents](https://docs.open-harness.dev/advanced/subagents) — nested delegation, dynamic catalogs, resumable sessions, and background execution
 - [MCP Servers](https://docs.open-harness.dev/advanced/mcp-servers) — Model Context Protocol integration
 - [Skills](https://docs.open-harness.dev/advanced/skills) — on-demand instruction packages
 - [UI Integration](https://docs.open-harness.dev/ui-integration/server-streaming) — React and Vue streaming
