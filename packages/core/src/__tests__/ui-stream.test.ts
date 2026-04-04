@@ -272,6 +272,32 @@ describe("sessionEventsToUIStream", () => {
       expect(subDone[0].data.durationMs).toBeGreaterThanOrEqual(0);
     });
 
+    it("carries sessionId metadata for resumable task tools", async () => {
+      const chunks = await collectChunks([
+        {
+          type: "tool.start",
+          toolCallId: "tc-1",
+          toolName: "task",
+          input: {
+            agent: "explore",
+            prompt: "search",
+            session: { mode: "resume", id: "sub-123" },
+          },
+        },
+        {
+          type: "tool.done",
+          toolCallId: "tc-1",
+          toolName: "task",
+          output: '<task_result session_id="sub-123">result</task_result>',
+        },
+      ]);
+
+      const subStart = findChunks(chunks, "data-oh:subagent.start");
+      const subDone = findChunks(chunks, "data-oh:subagent.done");
+      expect(subStart[0].data.sessionId).toBe("sub-123");
+      expect(subDone[0].data.sessionId).toBe("sub-123");
+    });
+
     it("emits data-oh:subagent.error when task tool fails", async () => {
       const chunks = await collectChunks([
         {

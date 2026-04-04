@@ -223,6 +223,16 @@ describe("AgentRegistry", () => {
         expect((agent as any).close).toHaveBeenCalled(),
       );
     });
+
+    it("tracks a sessionId when provided", async () => {
+      const registry = createRegistry();
+      const id = registry.spawn("a", createImmediateAgent("done"), "p", {
+        sessionId: "sub-1",
+      });
+
+      await vi.waitFor(() => expect(registry.getStatus(id)?.status).toBe("done"));
+      expect(registry.getStatus(id)?.sessionId).toBe("sub-1");
+    });
   });
 
   describe("getStatus", () => {
@@ -235,7 +245,12 @@ describe("AgentRegistry", () => {
       const registry = createRegistry();
       const { agent } = createControllableAgent();
       const id = registry.spawn("a", agent, "p", {});
-      expect(registry.getStatus(id)).toEqual({ status: "running" });
+      expect(registry.getStatus(id)).toEqual({
+        status: "running",
+        sessionId: undefined,
+        result: undefined,
+        error: undefined,
+      });
     });
 
     it("returns done with result after success", async () => {
@@ -244,7 +259,9 @@ describe("AgentRegistry", () => {
       await vi.waitFor(() => expect(registry.getStatus(id)?.status).toBe("done"));
       expect(registry.getStatus(id)).toEqual({
         status: "done",
+        sessionId: undefined,
         result: "hello",
+        error: undefined,
       });
     });
 
@@ -273,6 +290,8 @@ describe("AgentRegistry", () => {
       await vi.waitFor(() => expect(registry.getStatus(id)?.status).toBe("failed"));
       expect(registry.getStatus(id)).toEqual({
         status: "failed",
+        sessionId: undefined,
+        result: undefined,
         error: "boom",
       });
     });
@@ -417,8 +436,16 @@ describe("AgentRegistry", () => {
       const id2 = registry.spawn("b", createFailingAgent(new Error("boom")), "p", {});
 
       const results = await registry.awaitAllSettled([id1, id2]);
-      expect(results.get(id1)).toEqual({ status: "done", result: "ok" });
-      expect(results.get(id2)).toEqual({ status: "failed", error: "boom" });
+      expect(results.get(id1)).toEqual({
+        status: "done",
+        sessionId: undefined,
+        result: "ok",
+      });
+      expect(results.get(id2)).toEqual({
+        status: "failed",
+        sessionId: undefined,
+        error: "boom",
+      });
     });
 
     it("handles unknown IDs gracefully", async () => {
