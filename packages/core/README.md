@@ -10,7 +10,7 @@ npm install @openharness/core
 
 ## What's inside
 
-- **Agent** -- stateless multi-step executor wrapping any AI SDK `LanguageModel` with tools, subagents, MCP, and skills
+- **Agent** -- stateless multi-step executor wrapping any AI SDK `LanguageModel` with tools, subagents, resumable subagent sessions, MCP, and skills
 - **Session** -- batteries-included stateful wrapper with compaction, retry, persistence, and hooks
 - **Runner & Middleware** -- composable FP-style middleware (`withRetry`, `withCompaction`, `withTurnTracking`, `withPersistence`, `withHooks`) for pick-and-choose behavior
 - **Conversation** -- lightweight stateful wrapper over a composed Runner, with `toResponse()` for AI SDK 5 streaming
@@ -102,7 +102,7 @@ export async function POST(req: Request) {
 See the [full documentation](https://github.com/MaxGfeller/open-harness#readme) for:
 
 - Agent configuration, events, and lifecycle
-- Subagents (foreground & background)
+- Subagents (foreground, background, resumable sessions, and dynamic catalogs)
 - Middleware reference and custom middleware
 - Compaction strategies
 - MCP server integration
