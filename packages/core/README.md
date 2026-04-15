@@ -111,4 +111,4 @@ See the [full documentation](https://github.com/MaxGfeller/open-harness#readme) 
 
 ## License
 
-ISC
+MIT

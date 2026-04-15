@@ -63,4 +63,4 @@ const fsTools = createFsTools(new VfsFsProvider({ vfs }));
 
 ## License
 
-ISC
+MIT
