@@ -1,5 +1,13 @@
 # @openharness/react
 
+## 1.0.1
+
+### Patch Changes
+
+- 015dad0: Update license in README files from ISC to MIT to match the actual project license.
+- Updated dependencies [015dad0]
+  - @openharness/core@0.6.2
+
 ## 1.0.0
 
 ### Minor Changes

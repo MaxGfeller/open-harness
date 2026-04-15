@@ -1,6 +1,6 @@
 {
   "name": "@openharness/provider-vfs",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "type": "module",
   "description": "Virtual filesystem provider for @openharness/core — sandboxed, in-memory, or SQLite-backed file access for AI agents",
   "exports": {

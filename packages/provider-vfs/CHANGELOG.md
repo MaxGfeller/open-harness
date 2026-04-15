@@ -1,5 +1,13 @@
 # @openharness/provider-vfs
 
+## 0.1.3
+
+### Patch Changes
+
+- 015dad0: Update license in README files from ISC to MIT to match the actual project license.
+- Updated dependencies [015dad0]
+  - @openharness/core@0.6.2
+
 ## 0.1.2
 
 ### Patch Changes

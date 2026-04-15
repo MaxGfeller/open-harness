@@ -1,5 +1,11 @@
 # @openharness/core
 
+## 0.6.2
+
+### Patch Changes
+
+- 015dad0: Update license in README files from ISC to MIT to match the actual project license.
+
 ## 0.6.1
 
 ### Patch Changes

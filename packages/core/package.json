@@ -1,6 +1,6 @@
 {
   "name": "@openharness/core",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "type": "module",
   "description": "Building blocks for capable, general-purpose agents",
   "exports": {
