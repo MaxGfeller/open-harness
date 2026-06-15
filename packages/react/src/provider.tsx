@@ -2,9 +2,11 @@ import { useState, useCallback, useRef, type ReactNode } from "react";
 import {
   OHContext,
   initialSessionState,
+  initialTodoState,
   initialSandboxState,
   type SubagentInfo,
   type SessionState,
+  type TodoState,
   type SandboxState,
   type OHContextValue,
 } from "./context.js";
@@ -25,6 +27,7 @@ export function OpenHarnessProvider({ children }: OpenHarnessProviderProps) {
   );
   const [sessionState, setSessionState] =
     useState<SessionState>(initialSessionState);
+  const [todoState, setTodoState] = useState<TodoState>(initialTodoState);
   const [sandboxState, setSandboxState] =
     useState<SandboxState>(initialSandboxState);
 
@@ -130,6 +133,16 @@ export function OpenHarnessProvider({ children }: OpenHarnessProviderProps) {
           }));
           break;
 
+        // ── Todo events ─────────────────────────────────────────
+        case "data-oh:todo.updated":
+          setTodoState({
+            sessionId:
+              typeof data?.sessionId === "string" ? data.sessionId : undefined,
+            todos: Array.isArray(data?.todos) ? data.todos : [],
+            updatedAt: new Date(),
+          });
+          break;
+
         // ── Sandbox events (future) ──────────────────────────────
         case "data-oh:sandbox.provisioning":
           setSandboxState((prev) => ({
@@ -156,6 +169,7 @@ export function OpenHarnessProvider({ children }: OpenHarnessProviderProps) {
   const value: OHContextValue = {
     subagents,
     sessionState,
+    todoState,
     sandboxState,
     dispatch,
   };

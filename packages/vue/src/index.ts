@@ -16,6 +16,11 @@ export {
 
 export { useSessionStatus } from "./composables/useSessionStatus.js";
 
+export {
+  useTodos,
+  type UseTodosResult,
+} from "./composables/useTodos.js";
+
 export { useSandboxStatus } from "./composables/useSandboxStatus.js";
 
 // ── Transport ───────────────────────────────────────────────────────
@@ -30,5 +35,9 @@ export {
 export {
   type SubagentInfo,
   type SessionState,
+  type TodoItem,
+  type TodoPriority,
+  type TodoState,
+  type TodoStatus,
   type SandboxState,
 } from "./context.js";

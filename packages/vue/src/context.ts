@@ -36,6 +36,29 @@ export const initialSessionState: SessionState = {
   messagesRemovedByCompaction: 0,
 };
 
+// ── Todo state ──────────────────────────────────────────────────────
+
+export type TodoStatus = "pending" | "in_progress" | "completed" | "cancelled";
+export type TodoPriority = "high" | "medium" | "low";
+
+export interface TodoItem {
+  id?: string;
+  content: string;
+  status: TodoStatus;
+  priority: TodoPriority;
+}
+
+export interface TodoState {
+  sessionId?: string;
+  todos: TodoItem[];
+  updatedAt: Date | null;
+}
+
+export const initialTodoState: TodoState = {
+  todos: [],
+  updatedAt: null,
+};
+
 // ── Sandbox state ───────────────────────────────────────────────────
 
 export interface SandboxState {
@@ -57,19 +80,17 @@ export const initialSandboxState: SandboxState = {
 export interface OHContextValue {
   subagents: Ref<Map<string, SubagentInfo>>;
   sessionState: Ref<SessionState>;
+  todoState: Ref<TodoState>;
   sandboxState: Ref<SandboxState>;
   dispatch: (part: { type: string; data?: unknown }) => void;
 }
 
-export const OH_INJECTION_KEY: InjectionKey<OHContextValue> =
-  Symbol("openharness");
+export const OH_INJECTION_KEY: InjectionKey<OHContextValue> = Symbol("openharness");
 
 export function useOHContext(): OHContextValue {
   const ctx = inject(OH_INJECTION_KEY);
   if (!ctx) {
-    throw new Error(
-      "useOpenHarness composables must be used within an <OpenHarnessProvider>",
-    );
+    throw new Error("useOpenHarness composables must be used within an <OpenHarnessProvider>");
   }
   return ctx;
 }

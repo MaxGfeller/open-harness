@@ -36,6 +36,29 @@ export const initialSessionState: SessionState = {
   messagesRemovedByCompaction: 0,
 };
 
+// ── Todo state ──────────────────────────────────────────────────────
+
+export type TodoStatus = "pending" | "in_progress" | "completed" | "cancelled";
+export type TodoPriority = "high" | "medium" | "low";
+
+export interface TodoItem {
+  id?: string;
+  content: string;
+  status: TodoStatus;
+  priority: TodoPriority;
+}
+
+export interface TodoState {
+  sessionId?: string;
+  todos: TodoItem[];
+  updatedAt: Date | null;
+}
+
+export const initialTodoState: TodoState = {
+  todos: [],
+  updatedAt: null,
+};
+
 // ── Sandbox state ───────────────────────────────────────────────────
 
 export interface SandboxState {
@@ -57,6 +80,7 @@ export const initialSandboxState: SandboxState = {
 export interface OHContextValue {
   subagents: Map<string, SubagentInfo>;
   sessionState: SessionState;
+  todoState: TodoState;
   sandboxState: SandboxState;
   dispatch: (part: { type: string; data?: unknown }) => void;
 }
@@ -66,9 +90,7 @@ export const OHContext = createContext<OHContextValue | null>(null);
 export function useOHContext(): OHContextValue {
   const ctx = useContext(OHContext);
   if (!ctx) {
-    throw new Error(
-      "useOpenHarness hooks must be used within an <OpenHarnessProvider>",
-    );
+    throw new Error("useOpenHarness hooks must be used within an <OpenHarnessProvider>");
   }
   return ctx;
 }

@@ -20,6 +20,11 @@ export {
 
 export { useSessionStatus } from "./hooks/use-session-status.js";
 
+export {
+  useTodos,
+  type UseTodosResult,
+} from "./hooks/use-todos.js";
+
 export { useSandboxStatus } from "./hooks/use-sandbox-status.js";
 
 // ── Transport ───────────────────────────────────────────────────────
@@ -34,5 +39,9 @@ export {
 export {
   type SubagentInfo,
   type SessionState,
+  type TodoItem,
+  type TodoPriority,
+  type TodoState,
+  type TodoStatus,
   type SandboxState,
 } from "./context.js";

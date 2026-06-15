@@ -2,9 +2,11 @@ import { defineComponent, ref, provide, type Slot } from "vue";
 import {
   OH_INJECTION_KEY,
   initialSessionState,
+  initialTodoState,
   initialSandboxState,
   type SubagentInfo,
   type SessionState,
+  type TodoState,
   type SandboxState,
   type OHContextValue,
 } from "./context.js";
@@ -26,6 +28,7 @@ export const OpenHarnessProvider = defineComponent({
   setup(_, { slots }) {
     const subagents = ref<Map<string, SubagentInfo>>(new Map());
     const sessionState = ref<SessionState>({ ...initialSessionState });
+    const todoState = ref<TodoState>({ ...initialTodoState });
     const sandboxState = ref<SandboxState>({ ...initialSandboxState });
 
     function dispatch(part: { type: string; data?: unknown }) {
@@ -119,6 +122,15 @@ export const OpenHarnessProvider = defineComponent({
           };
           break;
 
+        // ── Todo events ─────────────────────────────────────────
+        case "data-oh:todo.updated":
+          todoState.value = {
+            sessionId: typeof data?.sessionId === "string" ? data.sessionId : undefined,
+            todos: Array.isArray(data?.todos) ? data.todos : [],
+            updatedAt: new Date(),
+          };
+          break;
+
         // ── Sandbox events (future) ──────────────────────────────
         case "data-oh:sandbox.provisioning":
           sandboxState.value = {
@@ -143,6 +155,7 @@ export const OpenHarnessProvider = defineComponent({
     const value: OHContextValue = {
       subagents,
       sessionState,
+      todoState,
       sandboxState,
       dispatch,
     };
