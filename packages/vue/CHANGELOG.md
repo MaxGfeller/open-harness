@@ -1,5 +1,16 @@
 # @openharness/vue
 
+## 2.0.0
+
+### Minor Changes
+
+- ccfd7e8: Add composable todo tools and UI state helpers. Core now ships session-scoped `todowrite` and `todoread` tools with pluggable todo storage and emits `oh:todo.updated` stream data; React and Vue expose `useTodos` helpers for rendering current todo state.
+
+### Patch Changes
+
+- Updated dependencies [ccfd7e8]
+  - @openharness/core@0.7.0
+
 ## 1.0.1
 
 ### Patch Changes

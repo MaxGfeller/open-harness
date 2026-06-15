@@ -1,5 +1,12 @@
 # @openharness/provider-vfs
 
+## 0.1.4
+
+### Patch Changes
+
+- Updated dependencies [ccfd7e8]
+  - @openharness/core@0.7.0
+
 ## 0.1.3
 
 ### Patch Changes
