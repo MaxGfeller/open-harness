@@ -98,6 +98,30 @@ function SessionInfo() {
 }
 ```
 
+## `useTodos`
+
+Tracks the latest todo list from `data-oh:todo.updated` events emitted by the core todo tools:
+
+```tsx
+import { useTodos } from "@openharness/react";
+
+function TodoDock() {
+  const { todos, activeTodo, completed, total, hasTodos } = useTodos();
+
+  if (!hasTodos) return null;
+
+  return (
+    <aside>
+      <div>{completed} / {total}</div>
+      <div>{activeTodo?.content}</div>
+      {todos.map((todo) => (
+        <div key={todo.id ?? todo.content}>{todo.content}</div>
+      ))}
+    </aside>
+  );
+}
+```
+
 ## Full Example
 
 ```tsx
@@ -106,6 +130,7 @@ import {
   useOpenHarness,
   useSubagentStatus,
   useSessionStatus,
+  useTodos,
 } from "@openharness/react";
 
 function App() {

@@ -108,3 +108,28 @@ interface ShellProvider {
 ```
 
 The built-in `NodeFsProvider` includes safety guards like file size limits and binary file detection. `NodeShellProvider` captures exit code, stdout, and stderr with output size limits.
+
+## Todo Tools
+
+Create session-scoped todo tools with a pluggable store:
+
+```typescript
+import { createTodoTools, InMemoryTodoStore } from "@openharness/core";
+
+const todoStore = new InMemoryTodoStore();
+const todoTools = createTodoTools({
+  sessionId: "chat-123",
+  store: todoStore,
+});
+```
+
+This returns:
+
+| Tool | Description |
+| --- | --- |
+| `todowrite` | Replace the current todo list with an updated ordered list |
+| `todoread` | Read the current todo list for the session |
+
+Todo items use typed statuses (`pending`, `in_progress`, `completed`, `cancelled`) and priorities (`high`, `medium`, `low`). If priority is omitted, it defaults to `medium`.
+
+When used with `sessionEventsToUIStream()`, successful `todowrite` calls emit a `data-oh:todo.updated` part so UI integrations can update without parsing raw tool output.
