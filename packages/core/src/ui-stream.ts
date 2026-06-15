@@ -1,6 +1,7 @@
 import type { UIMessageChunk } from "ai";
 import type { SessionEvent } from "./session.js";
 import type { OHDataTypes, OHMetadata } from "./types/ui-message.js";
+import { parseTodoUpdate } from "./todos.js";
 
 type OHChunk = UIMessageChunk<OHMetadata, OHDataTypes>;
 
@@ -142,9 +143,7 @@ export function sessionEventsToUIStream(
                     backgroundTaskIds.add(event.toolCallId);
                   }
                   const outputSessionId =
-                    typeof input.session?.id === "string"
-                      ? input.session.id
-                      : undefined;
+                    typeof input.session?.id === "string" ? input.session.id : undefined;
                   enqueue({
                     type: "data-oh:subagent.start",
                     data: {
@@ -165,6 +164,16 @@ export function sessionEventsToUIStream(
                 toolCallId: event.toolCallId,
                 output: event.output,
               });
+
+              if (event.toolName === "todowrite") {
+                const update = parseTodoUpdate(event.output);
+                if (update) {
+                  enqueue({
+                    type: "data-oh:todo.updated",
+                    data: update,
+                  });
+                }
+              }
 
               // If this is a task tool (subagent), emit subagent done data part
               // Skip for background spawns — the agent is still running

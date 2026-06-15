@@ -10,6 +10,23 @@ export {
   type SubagentEventFn,
 } from "./agent.js";
 
+// ── Todos ───────────────────────────────────────────────────────────
+
+export {
+  InMemoryTodoStore,
+  TODO_PRIORITIES,
+  TODO_STATUSES,
+  isTodoItem,
+  isTodoPriority,
+  isTodoStatus,
+  parseTodoUpdate,
+  type TodoItem,
+  type TodoPriority,
+  type TodoStatus,
+  type TodoStore,
+  type TodoUpdate,
+} from "./todos.js";
+
 // ── Subagent catalogs & resumable sessions ─────────────────────────
 
 export {
@@ -96,6 +113,7 @@ export {
   type OHSubagentPart,
   type OHCompactionPart,
   type OHRetryPart,
+  type OHTodoPart,
   type OHSessionLifecyclePart,
 
   // Type guards
@@ -103,6 +121,7 @@ export {
   isSubagentEvent,
   isCompactionEvent,
   isRetryEvent,
+  isTodoEvent,
   isSessionLifecycleEvent,
 
   // SSE formatters
@@ -174,3 +193,4 @@ export type {
 export { createFsTools, type CreateFsToolsOptions } from "./tools/create-fs-tools.js";
 export { createBashTool } from "./tools/create-bash-tool.js";
 export { createLocalTools } from "./tools/create-local-tools.js";
+export { createTodoTools, type CreateTodoToolsOptions } from "./tools/create-todo-tools.js";

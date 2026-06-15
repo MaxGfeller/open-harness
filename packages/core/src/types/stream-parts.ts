@@ -33,6 +33,11 @@ export type OHRetryPart = {
   data: OHDataTypes["oh:retry"];
 };
 
+export type OHTodoPart = {
+  type: "data-oh:todo.updated";
+  data: OHDataTypes["oh:todo.updated"];
+};
+
 export type OHSessionLifecyclePart =
   | {
       type: "data-oh:turn.start";
@@ -51,6 +56,7 @@ export type OHDataPart =
   | OHSubagentPart
   | OHCompactionPart
   | OHRetryPart
+  | OHTodoPart
   | OHSessionLifecyclePart;
 
 // ── Type guards ─────────────────────────────────────────────────────
@@ -67,9 +73,10 @@ export const isCompactionEvent = (part: { type: string }): part is OHCompactionP
 export const isRetryEvent = (part: { type: string }): part is OHRetryPart =>
   part.type === "data-oh:retry";
 
-export const isSessionLifecycleEvent = (
-  part: { type: string },
-): part is OHSessionLifecyclePart =>
+export const isTodoEvent = (part: { type: string }): part is OHTodoPart =>
+  part.type === "data-oh:todo.updated";
+
+export const isSessionLifecycleEvent = (part: { type: string }): part is OHSessionLifecyclePart =>
   part.type.startsWith("data-oh:turn.") || part.type === "data-oh:session.compacting";
 
 // ── SSE stream formatters ───────────────────────────────────────────

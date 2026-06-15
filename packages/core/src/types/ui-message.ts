@@ -34,6 +34,15 @@ export type OHDataTypes = {
     reason: string;
     delayMs: number;
   };
+  "oh:todo.updated": {
+    sessionId: string;
+    todos: Array<{
+      id?: string;
+      content: string;
+      status: "pending" | "in_progress" | "completed" | "cancelled";
+      priority: "high" | "medium" | "low";
+    }>;
+  };
   "oh:turn.start": {
     turnIndex: number;
   };
