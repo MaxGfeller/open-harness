@@ -5,6 +5,7 @@ import { type ReactNode } from "react";
 import { OpenHarnessProvider } from "../provider.js";
 import { useSubagentStatus } from "../hooks/use-subagent-status.js";
 import { useSessionStatus } from "../hooks/use-session-status.js";
+import { useTodos } from "../hooks/use-todos.js";
 import { useSandboxStatus } from "../hooks/use-sandbox-status.js";
 import { useOHContext } from "../context.js";
 
@@ -275,6 +276,48 @@ describe("useSessionStatus", () => {
     expect(result.current.session.isRetrying).toBe(true);
     expect(result.current.session.retryAttempt).toBe(2);
     expect(result.current.session.retryReason).toBe("rate limit");
+  });
+});
+
+// ── useTodos ────────────────────────────────────────────────────────
+
+describe("useTodos", () => {
+  it("starts with no todos", () => {
+    const { result } = renderHook(() => useTodos(), { wrapper });
+    expect(result.current.todos).toHaveLength(0);
+    expect(result.current.hasTodos).toBe(false);
+    expect(result.current.isComplete).toBe(false);
+    expect(result.current.activeTodo).toBeUndefined();
+  });
+
+  it("tracks todo updates and derived counts", () => {
+    const { result } = renderHook(
+      () => ({ todos: useTodos(), dispatch: useDispatch() }),
+      { wrapper },
+    );
+
+    act(() => {
+      result.current.dispatch({
+        type: "data-oh:todo.updated",
+        data: {
+          sessionId: "session-1",
+          todos: [
+            { content: "Inspect", status: "completed", priority: "high" },
+            { content: "Implement", status: "in_progress", priority: "medium" },
+            { content: "Document", status: "pending", priority: "low" },
+          ],
+        },
+      });
+    });
+
+    expect(result.current.todos.sessionId).toBe("session-1");
+    expect(result.current.todos.total).toBe(3);
+    expect(result.current.todos.completed).toBe(1);
+    expect(result.current.todos.inProgress).toBe(1);
+    expect(result.current.todos.pending).toBe(1);
+    expect(result.current.todos.activeTodo?.content).toBe("Implement");
+    expect(result.current.todos.hasTodos).toBe(true);
+    expect(result.current.todos.isComplete).toBe(false);
   });
 });
 

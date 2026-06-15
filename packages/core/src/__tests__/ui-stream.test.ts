@@ -194,6 +194,31 @@ describe("sessionEventsToUIStream", () => {
       });
     });
 
+    it("emits todo data on todowrite completion", async () => {
+      const todos = [
+        {
+          content: "Add todo tool",
+          status: "completed" as const,
+          priority: "high" as const,
+        },
+      ];
+      const chunks = await collectChunks([
+        {
+          type: "tool.done",
+          toolCallId: "tc-1",
+          toolName: "todowrite",
+          output: { sessionId: "session-1", todos },
+        },
+      ]);
+
+      expect(findChunks(chunks, "data-oh:todo.updated")).toEqual([
+        {
+          type: "data-oh:todo.updated",
+          data: { sessionId: "session-1", todos },
+        },
+      ]);
+    });
+
     it("emits tool-output-error on tool.error", async () => {
       const chunks = await collectChunks([
         {
@@ -451,9 +476,7 @@ describe("sessionEventsToUIStream", () => {
         },
       ]);
 
-      const subEvents = chunks.filter((c) =>
-        c.type?.startsWith("data-oh:subagent."),
-      );
+      const subEvents = chunks.filter((c) => c.type?.startsWith("data-oh:subagent."));
       expect(subEvents).toHaveLength(0);
     });
   });
