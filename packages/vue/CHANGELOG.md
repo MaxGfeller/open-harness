@@ -1,5 +1,11 @@
 # @openharness/vue
 
+## 2.0.1
+
+### Patch Changes
+
+- 2b404ad: Expose AI SDK stream resumption options through OpenHarness React and Vue integrations, including reconnect request customization.
+
 ## 2.0.0
 
 ### Minor Changes

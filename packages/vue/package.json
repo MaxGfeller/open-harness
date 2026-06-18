@@ -1,6 +1,6 @@
 {
   "name": "@openharness/vue",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "type": "module",
   "description": "Vue 3 composables and provider for OpenHarness AI SDK 5 integration",
   "exports": {
