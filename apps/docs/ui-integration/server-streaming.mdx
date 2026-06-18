@@ -53,6 +53,17 @@ export async function POST(req: Request) {
 }
 ```
 
+## Resumable Streams
+
+The direct `toResponse(input, { signal: req.signal })` pattern is enough for simple request-bound chat. For resumable chat, the server must decouple the active run from the HTTP response:
+
+- `POST` starts or attaches to a server-owned run for the chat id.
+- Client disconnect removes only that subscriber; it should not abort the run.
+- `GET ${endpoint}/${id}/stream` returns the active stream, or `204` when no stream is running.
+- Cancellation should be a separate server-side action.
+
+React and Vue clients can enable reconnects with `resume: true` and customize the GET endpoint with `prepareReconnectToStreamRequest`.
+
 ## Custom Data Parts
 
 The stream emits all standard AI SDK 5 chunk types (`text-delta`, `reasoning-delta`, `tool-input-available`, `tool-output-available`, `start`, `finish`, etc.) plus custom OpenHarness data parts for subagent activity, compaction, retry, and turn lifecycle:

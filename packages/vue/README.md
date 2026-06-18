@@ -68,6 +68,22 @@ Renderless component that provides shared subagent, session, and sandbox state t
 
 Creates a chat session connected to your API endpoint. Returns an AI SDK 5 `Chat` instance with reactive properties (`messages`, `status`, `error`, `sendMessage`, `stop`, etc.), typed with `OHUIMessage`.
 
+Pass a stable `id` and `resume: true` to ask AI SDK to reconnect to an active server-side stream when the component mounts:
+
+```ts
+const chat = useOpenHarness({
+  endpoint: '/api/tasks/task-1/chat',
+  id: 'task-1',
+  resume: true,
+  prepareReconnectToStreamRequest: ({ id }) => ({
+    api: `/api/tasks/${id}/chat/stream`,
+    credentials: 'include',
+  }),
+});
+```
+
+By default, reconnect attempts use `GET ${endpoint}/${id}/stream`. The server must own the active run and return the active stream or `204` when no stream is running. When stream resumption is enabled, do not rely on browser request abort as cancellation; provide a separate server-side cancel action.
+
 ### `useSubagentStatus()`
 
 Returns a computed ref deriving reactive state from `data-oh:subagent.*` stream events:
@@ -86,7 +102,7 @@ Returns a computed ref tracking sandbox-related state from stream events.
 
 ### `createOHTransport(options)`
 
-Low-level transport factory for custom integrations. Creates the SSE connection with OpenHarness data part handling.
+Low-level transport factory for custom integrations. Creates the SSE connection with OpenHarness data part handling and supports AI SDK request hooks such as `prepareReconnectToStreamRequest`.
 
 ## Documentation
 

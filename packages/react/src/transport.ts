@@ -1,11 +1,19 @@
-import { DefaultChatTransport, type ChatTransport, type UIMessage } from "ai";
+import {
+  DefaultChatTransport,
+  type ChatTransport,
+  type HttpChatTransportInitOptions,
+  type UIMessage,
+} from "ai";
 
-export interface OHTransportOptions {
-  headers?: Record<string, string>;
-  credentials?: RequestCredentials;
-  fetch?: typeof globalThis.fetch;
-  body?: Record<string, unknown>;
-}
+export type OHTransportOptions<UI_MESSAGE extends UIMessage = UIMessage> = Pick<
+  HttpChatTransportInitOptions<UI_MESSAGE>,
+  | "headers"
+  | "credentials"
+  | "fetch"
+  | "body"
+  | "prepareSendMessagesRequest"
+  | "prepareReconnectToStreamRequest"
+>;
 
 /**
  * Create a pre-configured chat transport pointed at an OpenHarness SSE endpoint.
@@ -13,7 +21,7 @@ export interface OHTransportOptions {
  */
 export function createOHTransport<UI_MESSAGE extends UIMessage = UIMessage>(
   endpoint: string,
-  opts?: OHTransportOptions,
+  opts?: OHTransportOptions<UI_MESSAGE>,
 ): ChatTransport<UI_MESSAGE> {
   return new DefaultChatTransport<UI_MESSAGE>({
     api: endpoint,
@@ -21,5 +29,7 @@ export function createOHTransport<UI_MESSAGE extends UIMessage = UIMessage>(
     credentials: opts?.credentials,
     fetch: opts?.fetch,
     body: opts?.body,
+    prepareSendMessagesRequest: opts?.prepareSendMessagesRequest,
+    prepareReconnectToStreamRequest: opts?.prepareReconnectToStreamRequest,
   });
 }

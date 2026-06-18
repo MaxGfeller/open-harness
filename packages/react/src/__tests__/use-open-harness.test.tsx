@@ -78,6 +78,28 @@ describe("useOpenHarness", () => {
     expect(onFinish).toHaveBeenCalledWith(event);
   });
 
+  it("forwards resume and stable chat id options to useChat", () => {
+    const helpers = createMockHelpers({ id: "task-1" });
+    let options: any;
+    mockedUseChat.mockImplementation((nextOptions: any) => {
+      options = nextOptions;
+      return helpers as any;
+    });
+
+    renderHook(
+      () =>
+        useOpenHarness({
+          endpoint: "/api/tasks/task-1/chat",
+          id: "task-1",
+          resume: true,
+        }),
+      { wrapper },
+    );
+
+    expect(options.id).toBe("task-1");
+    expect(options.resume).toBe(true);
+  });
+
   it("hydrates persisted messages that arrive after the first render", async () => {
     const persistedMessages = [
       {

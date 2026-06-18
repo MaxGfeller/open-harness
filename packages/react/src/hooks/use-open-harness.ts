@@ -13,13 +13,15 @@ export interface UseOpenHarnessFinishEvent {
   finishReason?: string;
 }
 
-export interface UseOpenHarnessConfig extends OHTransportOptions {
+export interface UseOpenHarnessConfig extends OHTransportOptions<OHUIMessage> {
   /** Your SSE endpoint URL. */
   endpoint: string;
   /** Stable chat ID for sharing state across components. */
   id?: string;
   /** Initial messages to populate the chat with (e.g. loaded from persistence). */
   messages?: OHUIMessage[];
+  /** Attempt to resume an active server-side stream when the hook mounts. */
+  resume?: boolean;
   /** Called when the assistant message finishes streaming, including abort/error metadata. */
   onFinish?: (event: UseOpenHarnessFinishEvent) => void;
 }
@@ -42,6 +44,7 @@ export function useOpenHarness(
     // the auto-generated id never matches the `undefined` in options.
     ...(config.id != null && { id: config.id }),
     messages: config.messages,
+    resume: config.resume,
     transport: createOHTransport<OHUIMessage>(config.endpoint, config),
     onData: (part) => dispatch(part),
     onFinish: config.onFinish,

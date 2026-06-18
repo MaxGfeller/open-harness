@@ -60,6 +60,32 @@ function send() {
 </template>
 ```
 
+### Resuming Streams
+
+Pass a stable `id` and `resume: true` to reconnect to an active server-side stream when the component mounts:
+
+```vue
+<script setup lang="ts">
+import { useOpenHarness } from "@openharness/vue";
+
+const chat = useOpenHarness({
+  endpoint: "/api/tasks/task-1/chat",
+  id: "task-1",
+  resume: true,
+  prepareReconnectToStreamRequest: ({ id }) => ({
+    api: `/api/tasks/${id}/chat/stream`,
+    credentials: "include",
+  }),
+});
+</script>
+```
+
+By default, reconnect attempts use `GET ${endpoint}/${id}/stream`. The server must own the active run and return the active stream or `204` when no stream is running.
+
+<Note>
+  AI SDK stream resumption is not compatible with treating browser request abort as cancellation. If a user needs to stop a background run, expose a separate server-side cancel action.
+</Note>
+
 ## `useSubagentStatus`
 
 Returns a computed ref deriving reactive state from `data-oh:subagent.*` events:

@@ -1,15 +1,18 @@
 import { Chat } from "@ai-sdk/vue";
 import type { OHUIMessage } from "@openharness/core";
+import { onMounted } from "vue";
 import { useOHContext } from "../context.js";
 import { createOHTransport, type OHTransportOptions } from "../transport.js";
 
-export interface UseOpenHarnessConfig extends OHTransportOptions {
+export interface UseOpenHarnessConfig extends OHTransportOptions<OHUIMessage> {
   /** Your SSE endpoint URL. */
   endpoint: string;
   /** Stable chat ID for sharing state across components. */
   id?: string;
   /** Initial messages to populate the chat with (e.g. loaded from persistence). */
   messages?: OHUIMessage[];
+  /** Attempt to resume an active server-side stream when the component mounts. */
+  resume?: boolean;
   /** Called when the assistant message finishes streaming. */
   onFinish?: (message: OHUIMessage) => void;
 }
@@ -38,6 +41,12 @@ export function useOpenHarness(config: UseOpenHarnessConfig): Chat<OHUIMessage> 
       ? ({ message }) => config.onFinish!(message)
       : undefined,
   });
+
+  if (config.resume) {
+    onMounted(() => {
+      void chat.resumeStream();
+    });
+  }
 
   return chat;
 }

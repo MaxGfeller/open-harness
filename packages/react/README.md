@@ -65,6 +65,22 @@ If you pass `messages`, the hook will also hydrate them when they arrive after t
 
 `onFinish` receives the full finish event, including `isAbort`, so persistence code can skip saving aborted assistant messages when desired.
 
+Pass a stable `id` and `resume: true` to ask AI SDK to reconnect to an active server-side stream when the component mounts:
+
+```tsx
+const chat = useOpenHarness({
+  endpoint: "/api/tasks/task-1/chat",
+  id: "task-1",
+  resume: true,
+  prepareReconnectToStreamRequest: ({ id }) => ({
+    api: `/api/tasks/${id}/chat/stream`,
+    credentials: "include",
+  }),
+});
+```
+
+By default, reconnect attempts use `GET ${endpoint}/${id}/stream`. The server must own the active run and return the active stream or `204` when no stream is running. When stream resumption is enabled, do not rely on browser request abort as cancellation; provide a separate server-side cancel action.
+
 ### `useSubagentStatus()`
 
 Derives reactive state from `data-oh:subagent.*` stream events:
@@ -83,7 +99,7 @@ Tracks sandbox-related state from stream events.
 
 ### `createOHTransport(options)`
 
-Low-level transport factory for custom integrations. Creates the SSE connection with OpenHarness data part handling.
+Low-level transport factory for custom integrations. Creates the SSE connection with OpenHarness data part handling and supports AI SDK request hooks such as `prepareReconnectToStreamRequest`.
 
 ## Documentation
 
