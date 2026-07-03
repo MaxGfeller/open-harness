@@ -30,7 +30,8 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "@ai-sdk/openai": "^3.0.30"
+    "@ai-sdk/openai": "^3.0.30",
+    "ai": "^6.0.97"
   },
   "peerDependencies": {
     "zod": "^3.25.76 || ^4.1.8"
