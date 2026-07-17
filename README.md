@@ -1,5 +1,11 @@
 # OpenHarness
 
+[![npm version](https://img.shields.io/npm/v/%40openharness%2Fcore?label=core%20version)](https://www.npmjs.com/package/%40openharness/core)
+[![bundle size](https://img.shields.io/bundlephobia/minzip/%40openharness%2Fcore?label=core%20min%2Bgzip)](https://bundlephobia.com/package/%40openharness%2Fcore@latest)
+[![dependencies](https://img.shields.io/librariesio/release/npm/%40openharness%2Fcore?label=core%20dependencies)](https://libraries.io/npm/%40openharness%2Fcore)
+[![monthly downloads](https://img.shields.io/npm/dm/%40openharness%2Fcore?label=core%20downloads)](https://www.npmjs.com/package/%40openharness/core)
+[![license](https://img.shields.io/github/license/MaxGfeller/open-harness)](./LICENSE)
+
 Build capable, general-purpose AI agents in code. Based on [Vercel's AI SDK](https://sdk.vercel.ai), inspired by Claude Code, Codex, and similar agent harnesses.
 
 **[Documentation](https://docs.open-harness.dev)**
