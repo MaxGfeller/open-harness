@@ -126,6 +126,7 @@ export class Agent {
   readonly instructions: boolean;
   readonly maxSubagentDepth: number;
   readonly approve?: ApproveFn;
+  readonly onError?: Parameters<typeof streamText>[0]["onError"];
   readonly onSubagentEvent?: SubagentEventFn;
 
   /** Original subagent templates or catalog (stored for nested children). */
@@ -170,6 +171,8 @@ export class Agent {
      * When omitted, all tool calls are allowed.
      */
     approve?: ApproveFn;
+    /** Optional streamText error callback. Error parts are still emitted via fullStream. */
+    onError?: Parameters<typeof streamText>[0]["onError"];
     /** Agents or a catalog available as subagents via the auto-generated `task` tool. */
     subagents?: SubagentSource;
     /** Optional stateful session layer for the auto-generated `task` tool. */
@@ -214,6 +217,7 @@ export class Agent {
     this.instructions = options.instructions ?? true;
     this.maxSubagentDepth = options.maxSubagentDepth ?? 1;
     this.approve = options.approve;
+    this.onError = options.onError;
     this.onSubagentEvent = options.onSubagentEvent;
     this.subagents = options.subagents;
     this.subagentSessions = options.subagentSessions;
@@ -307,6 +311,8 @@ export class Agent {
       stopWhen: stepCountIs(this.maxSteps),
       temperature: this.temperature,
       maxOutputTokens: this.maxTokens,
+      // fullStream still emits error parts; this only overrides the default console.error logger.
+      onError: this.onError,
       abortSignal: options?.signal,
     });
 
