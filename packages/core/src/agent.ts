@@ -101,6 +101,63 @@ type TaskSessionInput = {
   id?: string;
 };
 
+type AgentToolLoopOptions<TOOLS extends ToolSet> = Pick<
+  Parameters<typeof streamText<NoInfer<TOOLS>>>[0],
+  "toolChoice" | "stopWhen" | "prepareStep" | "activeTools" | "providerOptions"
+>;
+
+export type AgentOptions<TOOLS extends ToolSet = ToolSet> = {
+  name: string;
+  /** Short description of this agent's purpose. Used in the task tool for subagent selection. */
+  description?: string;
+  model: LanguageModel;
+  systemPrompt?: string;
+  tools?: TOOLS;
+  maxSteps?: number;
+  temperature?: number;
+  maxTokens?: number;
+  /** Load AGENTS.md / CLAUDE.md from the project directory. Defaults to true. */
+  instructions?: boolean;
+  /**
+   * Called before each tool execution. Return `true` to allow, `false` to deny.
+   * When omitted, all tool calls are allowed.
+   */
+  approve?: ApproveFn;
+  /** Agents or a catalog available as subagents via the auto-generated `task` tool. */
+  subagents?: SubagentSource;
+  /** Optional stateful session layer for the auto-generated `task` tool. */
+  subagentSessions?: SubagentSessionsConfig;
+  /**
+   * Maximum nesting depth for subagents. Defaults to `1` (direct subagents
+   * only, no nesting). Set to `2` to allow sub-subagents, etc.
+   * `0` effectively disables subagents even if `subagents` is provided.
+   */
+  maxSubagentDepth?: number;
+  /** Called for every event emitted by a subagent during a task tool call. */
+  onSubagentEvent?: SubagentEventFn;
+  /**
+   * Enable background execution for subagents. When enabled, the `task` tool
+   * gains a `background` parameter and lifecycle tools (`agent_status`,
+   * `agent_cancel`, `agent_await`) are auto-registered.
+   *
+   * Pass `true` for defaults, or an object for fine-grained control.
+   */
+  subagentBackground?: SubagentBackground;
+  /**
+   * MCP servers to connect to. Tools from these servers are merged into
+   * the agent's toolset. Connections are established lazily on first run.
+   *
+   * Keys are server names (used to namespace tools when multiple servers are configured).
+   */
+  mcpServers?: Record<string, MCPServerConfig>;
+  /**
+   * Skills configuration. Skills are markdown instruction packages (SKILL.md files)
+   * that the LLM can load on demand via an auto-generated `skill` tool.
+   * Discovered lazily on first run.
+   */
+  skills?: SkillsConfig;
+} & AgentToolLoopOptions<TOOLS>;
+
 interface SubagentSessionRuntime {
   activeSessionIds: Set<string>;
   metadataStore: SubagentSessionMetadataStore;
@@ -115,7 +172,7 @@ const TASK_SESSION_MODES = ["stateless", "new", "resume", "fork"] as const;
 
 // ── Agent ────────────────────────────────────────────────────────────
 
-export class Agent {
+export class Agent<TOOLS extends ToolSet = any> {
   readonly name: string;
   readonly description?: string;
   readonly model: LanguageModel;
@@ -123,6 +180,11 @@ export class Agent {
   readonly maxSteps: number;
   readonly temperature?: number;
   readonly maxTokens?: number;
+  readonly toolChoice?: AgentToolLoopOptions<TOOLS>["toolChoice"];
+  readonly stopWhen?: AgentToolLoopOptions<TOOLS>["stopWhen"];
+  readonly prepareStep?: AgentToolLoopOptions<TOOLS>["prepareStep"];
+  readonly activeTools?: AgentToolLoopOptions<TOOLS>["activeTools"];
+  readonly providerOptions?: AgentToolLoopOptions<TOOLS>["providerOptions"];
   readonly instructions: boolean;
   readonly maxSubagentDepth: number;
   readonly approve?: ApproveFn;
@@ -141,7 +203,7 @@ export class Agent {
   private agentRegistry?: AgentRegistry;
 
   /** Static tools provided at construction time. */
-  readonly tools?: ToolSet;
+  readonly tools?: TOOLS;
 
   /** MCP server configs — connected lazily on first run. */
   private mcpServerConfigs?: Record<string, MCPServerConfig>;
@@ -153,57 +215,7 @@ export class Agent {
 
   private cachedInstructions: string | undefined | null = null;
 
-  constructor(options: {
-    name: string;
-    /** Short description of this agent's purpose. Used in the task tool for subagent selection. */
-    description?: string;
-    model: LanguageModel;
-    systemPrompt?: string;
-    tools?: ToolSet;
-    maxSteps?: number;
-    temperature?: number;
-    maxTokens?: number;
-    /** Load AGENTS.md / CLAUDE.md from the project directory. Defaults to true. */
-    instructions?: boolean;
-    /**
-     * Called before each tool execution. Return `true` to allow, `false` to deny.
-     * When omitted, all tool calls are allowed.
-     */
-    approve?: ApproveFn;
-    /** Agents or a catalog available as subagents via the auto-generated `task` tool. */
-    subagents?: SubagentSource;
-    /** Optional stateful session layer for the auto-generated `task` tool. */
-    subagentSessions?: SubagentSessionsConfig;
-    /**
-     * Maximum nesting depth for subagents. Defaults to `1` (direct subagents
-     * only, no nesting). Set to `2` to allow sub-subagents, etc.
-     * `0` effectively disables subagents even if `subagents` is provided.
-     */
-    maxSubagentDepth?: number;
-    /** Called for every event emitted by a subagent during a task tool call. */
-    onSubagentEvent?: SubagentEventFn;
-    /**
-     * Enable background execution for subagents. When enabled, the `task` tool
-     * gains a `background` parameter and lifecycle tools (`agent_status`,
-     * `agent_cancel`, `agent_await`) are auto-registered.
-     *
-     * Pass `true` for defaults, or an object for fine-grained control.
-     */
-    subagentBackground?: SubagentBackground;
-    /**
-     * MCP servers to connect to. Tools from these servers are merged into
-     * the agent's toolset. Connections are established lazily on first run.
-     *
-     * Keys are server names (used to namespace tools when multiple servers are configured).
-     */
-    mcpServers?: Record<string, MCPServerConfig>;
-    /**
-     * Skills configuration. Skills are markdown instruction packages (SKILL.md files)
-     * that the LLM can load on demand via an auto-generated `skill` tool.
-     * Discovered lazily on first run.
-     */
-    skills?: SkillsConfig;
-  }) {
+  constructor(options: AgentOptions<TOOLS>) {
     this.name = options.name;
     this.description = options.description;
     this.model = options.model;
@@ -211,6 +223,11 @@ export class Agent {
     this.maxSteps = options.maxSteps ?? 100;
     this.temperature = options.temperature;
     this.maxTokens = options.maxTokens;
+    this.toolChoice = options.toolChoice;
+    this.stopWhen = options.stopWhen;
+    this.prepareStep = options.prepareStep;
+    this.activeTools = options.activeTools;
+    this.providerOptions = options.providerOptions;
     this.instructions = options.instructions ?? true;
     this.maxSubagentDepth = options.maxSubagentDepth ?? 1;
     this.approve = options.approve;
@@ -299,12 +316,26 @@ export class Agent {
           ? allTools
           : undefined;
 
+    const configuredStopConditions = this.stopWhen
+      ? Array.isArray(this.stopWhen)
+        ? this.stopWhen
+        : [this.stopWhen]
+      : [];
+    const stopWhen = [
+      ...configuredStopConditions,
+      stepCountIs(this.maxSteps),
+    ] as AgentToolLoopOptions<ToolSet>["stopWhen"];
+
     const stream = streamText({
       model: this.model,
       system,
       messages,
       tools,
-      stopWhen: stepCountIs(this.maxSteps),
+      toolChoice: this.toolChoice as AgentToolLoopOptions<ToolSet>["toolChoice"],
+      stopWhen,
+      prepareStep: this.prepareStep as AgentToolLoopOptions<ToolSet>["prepareStep"],
+      activeTools: this.activeTools as AgentToolLoopOptions<ToolSet>["activeTools"],
+      providerOptions: this.providerOptions,
       temperature: this.temperature,
       maxOutputTokens: this.maxTokens,
       abortSignal: options?.signal,
@@ -405,7 +436,9 @@ export class Agent {
               part.finishReason === "stop"
                 ? "complete"
                 : part.finishReason === "tool-calls"
-                  ? "max_steps"
+                  ? stepNumber >= this.maxSteps
+                    ? "max_steps"
+                    : "stopped"
                   : part.finishReason === "error"
                     ? "error"
                     : "stopped";
@@ -531,6 +564,11 @@ function createChildFromTemplate(
     maxSteps: template.maxSteps,
     temperature: template.temperature,
     maxTokens: template.maxTokens,
+    toolChoice: template.toolChoice,
+    stopWhen: template.stopWhen,
+    prepareStep: template.prepareStep,
+    activeTools: template.activeTools,
+    providerOptions: template.providerOptions,
     instructions: template.instructions,
     ...(nextDepth > 0 && template.subagents
       ? {

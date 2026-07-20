@@ -45,6 +45,35 @@ for await (const event of agent.run([], "Refactor the auth module")) {
 }
 ```
 
+## Tool-Loop Configuration
+
+`Agent` forwards selected [AI SDK `streamText`](https://ai-sdk.dev/docs/reference/ai-sdk-core/stream-text) tool-loop options from its constructor: `toolChoice`, `stopWhen`, `prepareStep`, `activeTools`, and `providerOptions`.
+
+```typescript
+import { hasToolCall } from "ai";
+
+const agent = new Agent({
+  name: "research",
+  model: openai("gpt-5.4"),
+  tools,
+  toolChoice: "required",
+  activeTools: ["lookup", "submitResult"],
+  stopWhen: hasToolCall("submitResult"),
+  prepareStep: ({ steps }) =>
+    steps.length > 2 ? { activeTools: ["submitResult"] } : undefined,
+  providerOptions: {
+    someProvider: { someOption: true },
+  },
+  maxSteps: 20,
+});
+```
+
+Custom `stopWhen` conditions are always composed with OpenHarness's `stepCountIs(maxSteps)` safety condition, so `maxSteps` remains a hard limit. A `tool-calls` finish before that limit is reported as `stopped`; reaching the safety limit is reported as `max_steps`.
+
+`prepareStep` can override AI SDK configuration for an individual step, such as active tools, but it cannot determine semantic application state or replace application-level completion policies on its own.
+
+Tool names are inferred from statically supplied `tools`. MCP, skills, subagents, and background-agent tools are merged at runtime, so TypeScript cannot infer their names when static tools are also present. Widen the agent to `Agent<ToolSet>` (with `ToolSet` imported from `ai`) when constructor configuration must refer to runtime-discovered tools.
+
 ## Multi-Turn with Sessions
 
 ```typescript

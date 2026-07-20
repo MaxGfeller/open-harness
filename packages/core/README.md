@@ -38,6 +38,31 @@ for await (const event of agent.run([], "Fix the auth bug")) {
 }
 ```
 
+### Tool-loop configuration
+
+`Agent` passes `toolChoice`, `stopWhen`, `prepareStep`, `activeTools`, and `providerOptions` through to AI SDK `streamText`:
+
+```typescript
+import { hasToolCall } from "ai";
+
+const agent = new Agent({
+  name: "research",
+  model: openai("gpt-5.2"),
+  tools,
+  toolChoice: "required",
+  activeTools: ["lookup", "submitResult"],
+  stopWhen: hasToolCall("submitResult"),
+  prepareStep: ({ steps }) =>
+    steps.length > 2 ? { activeTools: ["submitResult"] } : undefined,
+  providerOptions: { someProvider: { someOption: true } },
+  maxSteps: 20,
+});
+```
+
+OpenHarness always adds `stepCountIs(maxSteps)` to custom `stopWhen` conditions, so `maxSteps` remains a hard safety limit. A tool-call stop before that limit produces `done.result === "stopped"`; reaching the limit produces `"max_steps"`.
+
+`prepareStep` changes AI SDK configuration for a step, but application-level semantic state and completion policies remain the consumer's responsibility. Tool names infer from static `tools`; MCP, skill, subagent, and background-agent tools are discovered at runtime. Use `Agent<ToolSet>` (with `ToolSet` imported from `ai`) to widen configuration that needs to name those dynamic tools.
+
 ### Middleware + Conversation (composable)
 
 ```typescript

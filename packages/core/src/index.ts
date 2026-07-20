@@ -3,6 +3,7 @@
 export {
   Agent,
   ToolDeniedError,
+  type AgentOptions,
   type AgentEvent,
   type TokenUsage,
   type ToolCallInfo,
