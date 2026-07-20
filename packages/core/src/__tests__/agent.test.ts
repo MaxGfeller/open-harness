@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { tool } from "ai";
+import { tool as consumerTool } from "ai-consumer";
 import { z } from "zod";
 
 const { stepCountIsMock, streamTextMock } = vi.hoisted(() => ({
@@ -90,6 +91,17 @@ const staticTools = {
   submitResult: tool({
     inputSchema: z.object({}),
     execute: async () => "submitted",
+  }),
+};
+
+const consumerTools = {
+  lookup: consumerTool({
+    inputSchema: z.object({ query: z.string() }),
+    execute: async ({ query }) => query,
+  }),
+  submitResult: consumerTool({
+    inputSchema: z.object({ result: z.string() }),
+    execute: async ({ result }) => result,
   }),
 };
 
@@ -214,6 +226,45 @@ describe("Agent tool-loop options", () => {
       tools: staticTools,
       // @ts-expect-error Static tool names are checked.
       activeTools: ["missing"],
+    });
+  });
+
+  it("accepts tools from another AI SDK installation", () => {
+    new Agent({
+      name: "consumer-tools",
+      model: createModel(),
+      instructions: false,
+      tools: consumerTools,
+      toolChoice: { type: "tool", toolName: "lookup" },
+      activeTools: ["lookup"],
+      prepareStep: () => ({
+        activeTools: ["submitResult"],
+        toolChoice: { type: "tool", toolName: "submitResult" },
+      }),
+    });
+
+    new Agent({
+      name: "invalid-consumer-tool-choice",
+      model: createModel(),
+      tools: consumerTools,
+      // @ts-expect-error Static tool names are checked across package boundaries.
+      toolChoice: { type: "tool", toolName: "missing" },
+    });
+
+    new Agent({
+      name: "invalid-consumer-active-tools",
+      model: createModel(),
+      tools: consumerTools,
+      // @ts-expect-error Static tool names are checked across package boundaries.
+      activeTools: ["missing"],
+    });
+
+    new Agent({
+      name: "invalid-consumer-prepare-step",
+      model: createModel(),
+      tools: consumerTools,
+      // @ts-expect-error Static tool names are checked across package boundaries.
+      prepareStep: () => ({ activeTools: ["missing"] }),
     });
   });
 });

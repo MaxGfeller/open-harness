@@ -54,6 +54,7 @@
     "@ai-sdk/anthropic": "^3.0.46",
     "@ai-sdk/openai": "^3.0.30",
     "@types/node": "^25.3.0",
+    "ai-consumer": "npm:ai@6.0.175",
     "oxfmt": "^0.35.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"

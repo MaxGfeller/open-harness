@@ -3,6 +3,7 @@ import {
   streamText,
   stepCountIs,
   type LanguageModel,
+  type Tool,
   type ToolSet,
   type ModelMessage,
   type LanguageModelUsage,
@@ -101,12 +102,16 @@ type TaskSessionInput = {
   id?: string;
 };
 
-type AgentToolLoopOptions<TOOLS extends ToolSet> = Pick<
-  Parameters<typeof streamText<NoInfer<TOOLS>>>[0],
+type NamedToolSet<TOOLS extends object> = {
+  [NAME in Extract<keyof TOOLS, string>]: Tool<any, any>;
+};
+
+type AgentToolLoopOptions<TOOLS extends object> = Pick<
+  Parameters<typeof streamText<NamedToolSet<TOOLS>>>[0],
   "toolChoice" | "stopWhen" | "prepareStep" | "activeTools" | "providerOptions"
 >;
 
-export type AgentOptions<TOOLS extends ToolSet = ToolSet> = {
+export type AgentOptions<TOOLS extends object = Record<string, never>> = {
   name: string;
   /** Short description of this agent's purpose. Used in the task tool for subagent selection. */
   description?: string;
@@ -172,7 +177,7 @@ const TASK_SESSION_MODES = ["stateless", "new", "resume", "fork"] as const;
 
 // ── Agent ────────────────────────────────────────────────────────────
 
-export class Agent<TOOLS extends ToolSet = any> {
+export class Agent<TOOLS extends object = any> {
   readonly name: string;
   readonly description?: string;
   readonly model: LanguageModel;
@@ -300,12 +305,15 @@ export class Agent<TOOLS extends ToolSet = any> {
       this.subagentSessions,
     );
 
+    // Consumer tools can come from another AI SDK installation whose schema
+    // types are nominally incompatible, despite having the same runtime shape.
+    const staticTools = this.tools as unknown as ToolSet | undefined;
     const allTools: ToolSet = {
       ...(this.cachedSkills?.length
         ? { skill: createSkillTool(this.cachedSkills) }
         : {}),
       ...(this.mcpConnection?.tools ?? {}),
-      ...(this.tools ?? {}),
+      ...(staticTools ?? {}),
       ...(subagentTools ?? {}),
     };
 
