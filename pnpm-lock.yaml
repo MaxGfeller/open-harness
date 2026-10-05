@@ -91,6 +91,9 @@ importers:
       '@types/node':
         specifier: ^25.3.0
         version: 25.3.5
+      ai:
+        specifier: ^6.0.97
+        version: 6.0.116(zod@4.3.6)
       chalk:
         specifier: ^5.6.2
         version: 5.6.2

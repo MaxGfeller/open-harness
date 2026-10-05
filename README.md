@@ -91,6 +91,7 @@ Built-in subagents stay stateless by default, but you can now opt into:
 | Example | Run |
 | --- | --- |
 | [CLI agent](examples/cli) — terminal agent with tool approval and subagents | `pnpm --filter cli-demo start` or `pnpm --filter cli-demo start -- --chatgpt` |
+| [Web search](examples/cli/parallel-search.ts) with opt-in Parallel Search MCP | `pnpm --filter cli-demo search "What is Streamable HTTP in MCP?"` |
 | [Next.js chat](examples/nextjs-demo) — streaming chat with `@openharness/react` | `pnpm --filter nextjs-demo dev` |
 | [Nuxt chat](examples/nuxt-demo) — streaming chat with `@openharness/vue` | `pnpm --filter nuxt-demo dev` |
 

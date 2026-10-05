@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "tsx --env-file=../../.env cli.ts"
+    "start": "tsx --env-file=../../.env cli.ts",
+    "search": "tsx --env-file-if-exists=../../.env parallel-search.ts",
+    "test:search": "tsx --test parallel-search.test.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.30",
@@ -16,6 +18,7 @@
     "chalk": "^5.6.2",
     "ora": "^9.3.0",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "ai": "^6.0.97"
   }
 }

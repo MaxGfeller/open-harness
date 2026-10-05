@@ -53,3 +53,39 @@ When multiple MCP servers are configured, tools are namespaced as `serverName_to
 ## Lazy Connection
 
 MCP connections are established lazily on the first `run()` call and cached for the agent's lifetime. This follows the same pattern as skills discovery. Always call `agent.close()` when done to clean up connections.
+
+## Parallel Web Search Example
+
+For a runnable example using the built-in HTTP transport, see
+[`examples/cli/parallel-search.ts`](https://github.com/MaxGfeller/open-harness/blob/main/examples/cli/parallel-search.ts).
+It connects to the free, keyless [Parallel Search MCP](https://search.parallel.ai/mcp)
+server, then streams an answer with source URLs. Only this example opts into
+Parallel; the existing CLI and other examples keep their current configuration.
+
+After installing and building the repository, set `OPENAI_API_KEY` for the answering
+model in your environment or the root `.env` file, then run:
+
+```bash
+pnpm --filter cli-demo search "What is Streamable HTTP in MCP?"
+```
+
+The model still requires its own credentials and usage may incur model costs.
+No Parallel API key or authorization header is required. The example sends the
+question and any tool inputs selected by the model to the remote MCP server.
+
+The configuration passed to `Agent` is:
+
+```typescript
+mcpServers: {
+  parallel: {
+    type: "http",
+    url: "https://search.parallel.ai/mcp",
+    headers: { "User-Agent": "open-harness/parallel-search-example" },
+  },
+}
+```
+
+Connections are opened by `agent.run()` and closed in a `finally` block with
+`agent.close()`. With one MCP server, the discovered search and fetch tool names
+are used as-is. Run the local protocol test with `pnpm --filter cli-demo test:search`;
+it needs no model or Parallel credentials.
